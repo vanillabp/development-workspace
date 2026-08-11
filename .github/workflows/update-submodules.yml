@@ -1,0 +1,56 @@
+name: Bump submodules
+
+# Advance the pinned submodule commits to the latest tip of each submodule's
+# tracked branch (configured as `branch = ...` in .gitmodules) and commit the
+# new pointers. This keeps the superproject's recorded state current instead of
+# frozen at whatever the submodules were when they were added.
+#
+# All submodules are PUBLIC, so no cross-repo token is needed for reads: we
+# rewrite the SSH submodule URLs to anonymous HTTPS (the runner has no SSH key).
+# Pushing the bump commit back to THIS repo uses the built-in GITHUB_TOKEN.
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # daily 04:00 UTC
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Least-privilege: only write access to this repo's contents (for the push).
+permissions:
+  contents: write
+
+# Never run two bumps at once; cancel an in-flight run if a new one starts.
+concurrency:
+  group: bump-submodules
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout superproject (submodules handled manually below)
+        uses: actions/checkout@v4
+        # We do NOT use `submodules: recursive` here: checkout would try SSH for
+        # the git@github.com: URLs and fail (no key on the runner). Instead we
+        # rewrite to HTTPS first, then init. persist-credentials keeps the
+        # GITHUB_TOKEN wired so the final `git push` to this repo works.
+
+      - name: Use anonymous HTTPS for submodule fetches
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodules to latest tracked branch
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --remote --recursive
+
+      - name: Commit & push if any submodule advanced
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No submodule updates -- nothing to commit."
+          else
+            echo "Submodule pointers changed:"
+            git submodule status
+            git commit -am "chore: bump submodules to latest upstream"
+            git push
+          fi

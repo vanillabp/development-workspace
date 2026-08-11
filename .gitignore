@@ -2,6 +2,7 @@
 #   - README.md            -- workspace overview (moved up from dev-containers/)
 #   - LICENSE / NOTICE      -- Apache 2.0 license and notice
 #   - readme/              -- README image assets (headline, contributors)
+#   - .github/             -- GitHub Actions (e.g. the submodule-bump workflow)
 #   - .claude/skills       -- the shared Claude Code skills
 #   - dev-containers       -- the per-story DevContainer tooling (flat files)
 #   - .gitmodules + the referenced repos below, as git submodules
@@ -19,6 +20,7 @@
 # ...but keep these files and directories.
 !/.gitignore
 !/.gitmodules
+!/.github/
 !/README.md
 !/LICENSE
 !/NOTICE
