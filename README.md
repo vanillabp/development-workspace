@@ -83,6 +83,12 @@ Helper scripts to spin up one **isolated IntelliJ DevContainer per story** on
 top of this workspace. Project-specific values live in
 **`dev-containers/.env.sh`**.
 
+Usage:
+
+```shell
+./dev-containers/spawn-container.sh feature/new-feature-branch
+```
+
 Each story gets:
 
 - a sibling workspace directory `workspace/<PROJECT_NAME>-<leaf>/`
