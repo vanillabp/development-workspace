@@ -1,0 +1,46 @@
+# This repository lives at the workspace root. It tracks:
+#   - README.md            -- workspace overview (moved up from dev-containers/)
+#   - LICENSE / NOTICE      -- Apache 2.0 license and notice
+#   - readme/              -- README image assets (headline, contributors)
+#   - .claude/skills       -- the shared Claude Code skills
+#   - dev-containers       -- the per-story DevContainer tooling (flat files)
+#   - .gitmodules + the referenced repos below, as git submodules
+# The workspace also holds sibling directories that must stay untracked:
+# legacy repos (blueprint-workflowmodule-*, vanillabp-camunda*) and plain,
+# non-repo scratch dirs (prompts*, dev-containers-blueprints, processengineapi-adapter).
+#
+# gitignore rule that makes this work: a re-include (!) only takes effect if the
+# file's PARENT directory is not excluded -- hence we re-include the parent dirs
+# first, then narrow inside them.
+
+# Ignore every top-level entry...
+/*
+
+# ...but keep these files and directories.
+!/.gitignore
+!/.gitmodules
+!/README.md
+!/LICENSE
+!/NOTICE
+!/readme/
+!/dev-containers/
+!/.claude/
+
+# Within .claude, keep only skills (drop settings.local.json and anything else).
+/.claude/*
+!/.claude/skills/
+
+# Referenced repos, tracked as git submodules (cloned via --recurse-submodules).
+# Legacy (blueprint-workflowmodule-*, vanillabp-camunda*) is intentionally absent.
+!/adapter-platform-integration/
+!/adapter-platform-integration.wiki/
+!/blueprints/
+!/blueprints-organisation-page/
+!/camunda7-adapter/
+!/camunda7-adapter.wiki/
+!/camunda8-adapter/
+!/camunda8-adapter.wiki/
+!/process-engine-api-adapter/
+!/process-engine-api-adapter.wiki/
+!/renovate-config/
+!/spi-for-java/

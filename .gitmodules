@@ -1,0 +1,36 @@
+[submodule "adapter-platform-integration"]
+	path = adapter-platform-integration
+	url = git@github.com:vanillabp/adapter-platform-integration.git
+[submodule "adapter-platform-integration.wiki"]
+	path = adapter-platform-integration.wiki
+	url = https://github.com/vanillabp/adapter-platform-integration.wiki.git
+[submodule "blueprints"]
+	path = blueprints
+	url = git@github.com:vanillabp-blueprints/blueprints.git
+[submodule "blueprints-organisation-page"]
+	path = blueprints-organisation-page
+	url = git@github.com:vanillabp-blueprints/.github.git
+[submodule "camunda7-adapter"]
+	path = camunda7-adapter
+	url = git@github.com:vanillabp/camunda7-adapter.git
+[submodule "camunda7-adapter.wiki"]
+	path = camunda7-adapter.wiki
+	url = https://github.com/camunda-community-hub/vanillabp-camunda7-adapter.wiki.git
+[submodule "camunda8-adapter"]
+	path = camunda8-adapter
+	url = git@github.com:vanillabp/camunda8-adapter.git
+[submodule "camunda8-adapter.wiki"]
+	path = camunda8-adapter.wiki
+	url = https://github.com/camunda-community-hub/vanillabp-camunda8-adapter.wiki.git
+[submodule "process-engine-api-adapter"]
+	path = process-engine-api-adapter
+	url = git@github.com:vanillabp/process-engine-api-adapter.git
+[submodule "renovate-config"]
+	path = renovate-config
+	url = git@github.com:vanillabp/renovate-config.git
+[submodule "spi-for-java"]
+	path = spi-for-java
+	url = git@github.com:vanillabp/spi-for-java.git
+[submodule "process-engine-api-adapter.wiki"]
+	path = process-engine-api-adapter.wiki
+	url = git@github.com:vanillabp/process-engine-api-adapter.wiki.git
