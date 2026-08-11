@@ -105,6 +105,15 @@ NODE_FEATURE_VERSION="24"
 # (no glab install hint, no credential helper for git HTTPS pushes).
 #GLAB_HOSTNAME="whatever"
 
+# --- GitHub integration (optional - remove if not required) ----------------
+
+# gh (GitHub CLI) version installed by the Dockerfile. Empty disables the gh
+# install, the bind-mounted gh config and the gh git credential helper. gh
+# always targets github.com, so no hostname is needed. The host's ~/.config/gh
+# is bind-mounted so 'gh auth login' is shared between host and container.
+# Bump to install a newer release -- see https://github.com/cli/cli/releases.
+GH_VERSION="2.97.0"
+
 # --- IntelliJ run configurations -------------------------------------------
 
 # Each entry is the filename of an XML run-config under
