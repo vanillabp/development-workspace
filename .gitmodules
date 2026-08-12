@@ -4,7 +4,7 @@
 	branch = main
 [submodule "adapter-platform-integration.wiki"]
 	path = adapter-platform-integration.wiki
-	url = https://github.com/vanillabp/adapter-platform-integration.wiki.git
+	url = git@github.com:vanillabp/adapter-platform-integration.wiki.git
 	branch = master
 [submodule "blueprints"]
 	path = blueprints
@@ -20,7 +20,7 @@
 	branch = main
 [submodule "camunda7-adapter.wiki"]
 	path = camunda7-adapter.wiki
-	url = https://github.com/camunda-community-hub/vanillabp-camunda7-adapter.wiki.git
+	url = git@github.com:camunda-community-hub/vanillabp-camunda7-adapter.wiki.git
 	branch = master
 [submodule "camunda8-adapter"]
 	path = camunda8-adapter
@@ -28,7 +28,7 @@
 	branch = main
 [submodule "camunda8-adapter.wiki"]
 	path = camunda8-adapter.wiki
-	url = https://github.com/camunda-community-hub/vanillabp-camunda8-adapter.wiki.git
+	url = git@github.com:camunda-community-hub/vanillabp-camunda8-adapter.wiki.git
 	branch = master
 [submodule "process-engine-api-adapter"]
 	path = process-engine-api-adapter
