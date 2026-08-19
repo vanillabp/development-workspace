@@ -76,7 +76,7 @@ Target is **>90% line coverage, per platform, viewed separately**:
   adapter or real BPMS) — see the outbox ITs
   (`outbox-jpa-integration-test`, `outbox-mongo-integration-test`) for
   transaction/rollback/recovery test shapes (incl. context-restart recovery tests).
-- **Quarkus, CDI-level:** `QuarkusUnitTest` (`@RegisterExtension`) with
+- **Quarkus, CDI-level:** `QuarkusExtensionTest` (`@RegisterExtension`) with
   `.withApplicationRoot(jar -> jar.addAsResource("application.yaml").addClass(...))` —
   workflow-module marker files added via
   `addAsResource("workflow-module-descriptor/workflow-module", "META-INF/workflow-module")`.
@@ -93,6 +93,20 @@ Target is **>90% line coverage, per platform, viewed separately**:
   `ExecutionMode`.
 - Real-BPMS tests: C7 embedded on H2 (cheap — use freely); C8 via Testcontainers with
   `@Testcontainers(disabledWithoutDocker = true)`; MongoDB via Testcontainers.
+- **A real engine or cluster needs `@DirtiesContext` on the class, plus its own database
+  respectively container.** Spring caches every test context until the JVM exits, and all
+  IT classes of a module share one Surefire fork: a context which outlives its test keeps
+  working — C7's job executor polls the database the next classes use, C8's job workers
+  poll a gateway Testcontainers already stopped. That accumulation is what made the
+  seventh Zeebe container of `camunda8-adapter` run into test timeouts, and what let two
+  C7 engines fish each other's jobs. Classes deliberately SHARING one context (identical
+  `@SpringBootTest`, no `@DynamicPropertySource`) stay without the annotation — it would
+  rebuild their context between classes.
+- **Shared test beans are reset by the test which changed them** (`@AfterEach`), not only
+  in the next class's `@BeforeEach`. Surefire and Failsafe run `alphabetical` (parent POM)
+  so a runner's order matches the local one, but a left-behind window or stub answer still
+  poisons whoever comes next — the platform's `TaskOperationsDispatchTest` waited 300 s per
+  test for exactly that reason.
 
 ## Checklist for a story's test plan
 

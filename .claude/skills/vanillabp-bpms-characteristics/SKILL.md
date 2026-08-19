@@ -50,10 +50,61 @@ contact the cluster" — that is wrong. The real rule:
   the cluster.** There is no pre-existing state to validate; if the cluster is
   unavailable, the phase-two start just waits in the outbox until it is reachable. So a
   start adapter's phase one only resolves the aggregate id and verifies configuration.
+- **A phase-two failure is repeated unless the adapter says it cannot help.** The
+  outbox retries until the entry is blocked, which is what makes an operation losing a
+  concurrency conflict survivable. Where the BPMS will answer the same way every time
+  (Camunda 7 rejecting an invalid command, an API which cannot do what was asked), the
+  adapter answers `false` to `MigratableProcessService.isPhaseTwoFailureRepeatable`
+  (since story 63, default `true`). The core then wraps the failure in a
+  `PhaseTwoPermanentFailure` and every store blocks that entry after ONE attempt.
+  Keep the list of permanent cases short: repeating is the safe default.
 
-Embedded BPMS (Camunda 7) do everything in phase one within the shared transaction;
-phase two is a no-op. This section is about *remote* BPMS (Camunda 8, Process-Engine-API
-treated as remote, ZenBPM).
+  What each adapter answers today (story 73):
+
+  | Adapter | Permanent | Everything else |
+  |---|---|---|
+  | Camunda 7 | `BadUserRequestException` (a task id which does not exist, an argument the engine rejects) | repeated, `OptimisticLockingException` being the case two-phase exists for |
+  | Camunda 8 | HTTP `400`/`403`/`405`/`501` and the gRPC `INVALID_ARGUMENT`/`PERMISSION_DENIED`/`UNIMPLEMENTED`, plus `NumberFormatException` on a task key | repeated, deliberately including `404` (eventual consistency), `401` (expired token), `409`, `429`, `5xx` |
+  | Process-Engine-API | `UnsupportedOperationException` - what the API cannot do at all (signal without `SignalApi`, pushing a changed aggregate) | repeated: the API has no typed exceptions, so "refused" and "unreachable" are indistinguishable |
+
+  What phase one can ASK differs the same way: Camunda 7 asks its embedded engine for
+  free, Camunda 8 runs non-advancing checks against the cluster (job timeout update, empty
+  user-task update) as a PRE-COMMIT synchronization, and the Process-Engine-API uses
+  `ExecutionMode.PREFLIGHT_CHECK` where a command lets it (an `open class` - the final
+  `data class` commands `CorrelateMessageCmd` and `SendSignalCmd` do not, which is why
+  correlation and signals have no preflight there). For a message correlation Camunda 8
+  asks the MODEL instead of the cluster: a message no deployed model of the workflow module
+  declares fails in phase one, because the cluster would buffer the publication until its
+  time-to-live passed and nothing would ever correlate.
+
+Camunda 7 used to do everything in phase one within the shared transaction. Since story
+63 it uses the same two-phase path as every other BPMS: an operation which loses a
+concurrency conflict cannot be repeated inside the caller's transaction (every engine
+command joins it, so a failing one leaves it rollback-only), and repeating just the
+engine part in a transaction of its own would advance the process while the application
+rolls back. Being embedded, its phase one asks MORE than a remote one can: the task's
+existence, a waiting message subscription, a deployed message start event - exactly and
+for free, from the caller's own transaction.
+
+**Being embedded is no reason to share less** (story 66). Every BPMS evaluates the
+expressions of its models against ITS OWN variables, an embedded engine included - so
+Camunda 7 pushes the shared values like every other adapter, at every point the adapter
+talks to the engine, the completion of a `@WorkflowTask` method included (a gateway right
+behind a service task decides on what that task computed). Reading the aggregate live was
+the older approach and it made models unportable: they worked on Camunda 7 and took the
+default flow everywhere else. What remains of it is a migration fallback for workflows
+started before the upgrade, removed in 2.1. Consequences for an adapter of the C7 family:
+the values are written INSIDE the engine's transaction (the handler ran there), nested
+values need a serialization format the application configures, and any
+`ProcessEnginePlugin` bean of the application has to reach the engine the adapter builds -
+otherwise no dataformat can be installed.
+
+**An embedded engine also limits where the aggregate may live** (story 70): Camunda 7
+needs a relational database, and its engine transaction can never cover a workflow
+aggregate stored anywhere else - MongoDB, an event store, a ledger. Such an application
+is legal, but the engine and the aggregate commit separately, and no configuration
+changes that. A remote BPMS has no such tie: there the aggregate's store decides which
+transaction VanillaBP opens, and the phase-two outbox entry rides it.
 
 ## BPMN modification at deployment is engine-specific
 
@@ -82,9 +133,21 @@ base** for now.
   same DB transaction** as the business code. Calls are synchronous.
 - Version: **7.24 is the final feature release** (Oct 2025, LTS; community edition
   EOL — no further community releases). Pin 7.24.x.
-- `needsTwoPhaseCommitForStartingWorkflows()` = **false**: starting a workflow happens
-  completely in phase one within the local transaction; phase two is a no-op. No
-  outbox involved.
+- `needsTwoPhaseCommitForStartingWorkflows()` = **true** (since story 63, for every
+  adapter id): every progressing operation is scheduled through the phase-two outbox and
+  runs after the commit, so it can be repeated when it loses a conflict. An outbox is
+  therefore mandatory for Camunda 7. What phase one still does is ASK - a task which is
+  gone, a message nobody waits for and an unknown message start event still fail
+  synchronously, where the application made the call - a wrong correlation id
+  included, since the id the waiting execution expects is a local variable phase one
+  can read.
+- Permanent phase-two failures: a `BadUserRequestException` (an operation the engine
+  refuses as invalid, e.g. a task id which never existed) is reported as NOT repeatable,
+  so its outbox entry is blocked right away instead of after ten attempts. Everything
+  else, the optimistic-locking conflict above all, stays repeatable.
+- The INBOUND direction is unchanged: the engine delivers tasks inside its OWN
+  transaction, so aggregate changes and engine state still commit together there, and
+  `deliversTasksAtLeastOnce()` stays `false`.
 - No eventual consistency: engine queries (awareness, task state) read the local DB
   and are authoritative. `BPMS_UNAVAILABLE` practically cannot occur.
 - Asynchronous continuations (async-before/after, timers) run on the engine's **job
@@ -133,6 +196,14 @@ base** for now.
   immediately (exported data lags behind the engine). Awareness implementations must
   distinguish carefully: gateway unreachable → `BPMS_UNAVAILABLE` (never triggers
   fallback election); a successful query that finds nothing → `UNKNOWN_TO_BPMS`.
+  Answering `UNKNOWN_TO_BPMS` for a workflow which exists is NOT a bug to hide, it is
+  what the read model knows — report a `workflowVisibilityDelay()` instead (Camunda 8:
+  `workflow-visibility-timeout`, 10s), and the core keeps asking while it has a reason
+  to believe this BPMS holds the workflow (story 54).
+- **The aggregate-ID variable is named after the aggregate's ID attribute**, so every
+  lookup needs that name from the persistence of the call at hand. Camunda 8 stores
+  variables as JSON, so the filter value carries quotes (`"\"4711\""`). Both were
+  defects which made every probe find nothing (stories 52 and 54).
 - **At-least-once job workers:** service tasks are pulled by polling workers; a job
   may be delivered again after a timeout or crash. `@WorkflowTask` handlers are
   therefore called at least once → task completion must be **idempotent** (keyed by
@@ -194,11 +265,15 @@ base** for now.
 | Trait | Camunda 7 | Camunda 8 | PEA | ZenBPM |
 |---|---|---|---|---|
 | Location | in-JVM | remote | depends (treat remote) | remote |
-| Joins local TX | yes | no | `SYNC` mode may | no |
-| Two-phase start | no | yes | yes | yes |
+| Joins local TX | inbound yes (task delivery), outbound no | no | `SYNC` mode may | no |
+| Aggregate sync default | `FULL` (story 66; it used to be `NONE` plus a live read) | `FULL` | `FULL` | `FULL` |
+| Two-phase start | yes (story 63) | yes | yes | yes |
 | Eventual consistency | no | yes | possible | expected |
 | Task delivery | synchronous / job executor | polling workers, at-least-once | Task Subscription API | REST (tbd) |
 | Idempotent handlers needed | no | yes | yes | yes |
+| Sees a version conflict of the aggregate | no while delivering (engine owns the TX) | yes | yes | yes |
+| Failed task ends in | retry by job executor, then incident | retries counted down, then incident | the engine's business | tbd |
+| Identity of a delivery (story 51) | none needed (delivery in engine TX) | job key | task id | tbd |
 | Module isolation | tenant ID | tbd (variable/tenant) | not expressible (gap) | tbd |
 | Client artifact | `org.camunda.bpm:camunda-engine` 7.24.x | `io.camunda:camunda-client-java` 8.8.x | `dev.bpm-crafters.process-engine-api:process-engine-api` | REST (openapi) |
 
@@ -207,8 +282,208 @@ base** for now.
 1. What is generic? → implement in `migration-adapter` (+ platform glue), not here.
 2. Which `ExecutionMode`/phase does each call belong to (in-TX vs. after-commit)?
 3. Is the operation delivered at-least-once? → make the handler idempotent and name
-   the idempotency key.
+   the idempotency key. INBOUND (BPMS → application) that means two answers:
+   `deliversTasksAtLeastOnce()` and an identity per delivery
+   (`TaskInvocationContext.getDeliveryId()`), stable across a redelivery and different
+   for a new task instance - the core then skips the handler of a repeated delivery and
+   reports the recorded outcome. Where the BPMS delivers inside the application's
+   transaction, both answers are "no" and that is the complete answer.
 4. Can the BPMS answer "unknown" reliably, or only eventually? → map to
-   `UNKNOWN_TO_BPMS` vs. `BPMS_UNAVAILABLE` correctly (wrong mapping breaks election).
+   `UNKNOWN_TO_BPMS` vs. `BPMS_UNAVAILABLE` correctly (wrong mapping breaks election),
+   and report a `workflowVisibilityDelay()` where "unknown" may just mean "not yet".
 5. Does the feature work per workflow module (tenant/namespace)? If not expressible:
    document the gap (PEA: `GAPS.md`).
+
+
+## Starting a workflow the BPMS decides on (story 41)
+
+A timer, signal or conditional start event starts a process without the application.
+What each BPMS offers to notice it:
+
+- **Camunda 7:** an execution listener on the start event, running in the engine's own
+  transaction. The aggregate and the process instance commit together, so a failure
+  rolls both back and there is no repeated notification to guard against. The
+  aggregate's ID becomes the instance's BUSINESS KEY. The engine does not tell the
+  listener a timer's scheduled time.
+- **Camunda 8:** execution listeners exist since 8.6, but the cluster REJECTS event
+  type `start` on a start event ("Execution listeners of type 'start' are not
+  supported by start events", verified against 8.8.31). An `end` listener on the start
+  event works and still gates the transition. Its job completion carries the
+  aggregate-ID variable. The cluster does not report a timer's scheduled time either,
+  so the stable identity is the PROCESS INSTANCE KEY - it survives a retried listener
+  job, which a remote BPMS can always produce. Conditional events do not exist in
+  Camunda 8 at all.
+- **Process-Engine-API:** nothing. The API reports tasks, not starts, so such a
+  process is rejected while deploying (GAPS.md 16).
+
+The lesson generalizes: where a BPMS can repeat a notification after the aggregate was
+committed, the aggregate's ID has to be derived from something the BPMS itself keeps
+stable; where notification and aggregate share one transaction, the meaningful value
+(the trigger time) can be used.
+
+
+## Signals (story 42)
+
+- **Camunda 7:** `RuntimeService.createSignalEvent(name)` with tenant handling, inside
+  the caller's transaction. It CAN target a single execution (`executionId`), which
+  VanillaBP deliberately does not expose - no other BPMS can.
+- **Camunda 8:** `BroadcastSignal` (8.3+), after the commit. No payload, no message id
+  equivalent, so no deduplication.
+- **Process-Engine-API:** `SignalApi.sendSignal(SendSignalCmd)` exists (1.5+), so the
+  adapter can serve signals; the command carries a payload supplier which VanillaBP
+  leaves empty.
+
+The asymmetry that matters: only an embedded engine can make the broadcast part of the
+application's transaction. Everywhere else the outbox does it, and the at-least-once
+residual has no cure because a signal carries no key.
+
+
+## Pushing a changed aggregate (story 44)
+
+- **Camunda 7:** `RuntimeService.setVariables(processInstanceId, ...)` /
+  `setVariablesLocal(<scope execution>, ...)`, inside the caller's transaction. The
+  task-scoped write goes to the scope the task RUNS in, found by walking the execution
+  tree upwards: skip the execution of an activity's own scope (boundary events,
+  multi-instance instance - the model tells which activity has one) and skip the
+  multi-instance BODY (recognizable by its local `nrOfInstances`). Note the tree shape:
+  for a multi-instance subprocess the iteration's SCOPE execution is the one the task
+  executes on, while `item`/`loopCounter` live on the concurrent execution above it.
+  Conditional events (intermediate, boundary, event subprocess) are evaluated ONLY when
+  a variable of their scope or of a PARENT scope changes - `createConditionEvaluation()`
+  is for conditional START events and does not help here. Since this adapter shares nothing by default, an empty
+  push would be no change at all: VanillaBP writes `vanillabpAggregateChanged` (the
+  push time) so the variable event happens. Verified by an IT: the conditional event
+  fires only after the push, and a task-scoped push leaves the siblings and the process
+  scope untouched.
+- **Camunda 8:** `newSetVariablesCommand(key)` with `local(false)` for the process
+  instance and `local(true)` for the element instance of the scope the task runs in,
+  after the commit. The keys are NOT derivable without the query API: a process instance
+  is found by the aggregate-ID variable, the task's element instance via job search by
+  job key (a VanillaBP task id IS the job key). The API has no parent link on an element
+  instance (only an `elementInstanceScopeKey` FILTER), so the scope around a task is
+  found by walking down from the process instance. So the feature requires secondary storage, and the adapter says so. NOTE
+  variable filters carry JSON values - a String has to be searched WITH quotes, which
+  the client does not add (story 52: getting this wrong made EVERY probe answer
+  UNKNOWN_TO_BPMS on clusters with secondary storage, and no test noticed because the
+  test clusters had none). One encoder `Camunda8VariableFilters` serves every search.
+  When writing Camunda 8 tests, ask which cluster the test needs: without secondary
+  storage the awareness probe is the optimistic FALLBACK, not the query.
+- **Process-Engine-API:** payload modification exists for TASKS only
+  (`UserTaskModificationApi` + `ChangePayloadModifyTaskCmd`), never for a running
+  instance - gap 18, both phases throw guiding.
+
+Conditional events are the asymmetry worth remembering: Camunda 7 has them and needs a
+variable change to look at them, Camunda 8 has none at all.
+
+Camunda 7 EL pitfall found here: `Camunda7TaskConnectable.applies` matches by ELEMENT id
+too, so every expression evaluated while an execution sits at a wired task used to resolve
+to that task's behavior. The resolver now prefers a workflow-aggregate attribute unless the
+name IS a task definition, asking the core via `workflowAggregateHasProperty` (class-level,
+no aggregate loaded).
+
+
+## The end of a workflow (story 43)
+
+- **Camunda 7:** an END execution listener at the PROCESS scope, inside the engine's
+  transaction. `PvmExecutionImpl#getDeleteReason()` is what distinguishes a cancelled
+  or terminated instance from one which reached an end event, and the current
+  activity id names that end event.
+- **Camunda 8:** an `end` execution listener on the PROCESS element is accepted
+  (verified against 8.8.31 - unlike `start` on a start event, which is rejected). It
+  runs for COMPLETED instances only: a cancelled instance is removed without running
+  end listeners, so the adapter cannot report a cancellation and says so.
+- **Process-Engine-API:** nothing. Task subscriptions are all the API offers, so the
+  adapter warns instead of pretending (GAPS.md 17).
+
+The rule this confirms: what a BPMS cannot tell apart, an adapter reports as the
+weaker fact rather than inventing the distinction.
+
+## The version of a deployed process (story 48)
+
+What `@WorkflowTask(version = ...)` and its siblings are matched against, per BPMS:
+
+- **Camunda 7:** counts a definition's version upwards per process id, and every
+  execution names its definition id. The adapter resolves the version ONCE per definition
+  id and caches it (a repository query per task execution would be paid by every
+  workflow). `camunda:versionTag` is on the definition, so the definition query answers
+  which version carries which tag, and `deployWithResult()` already reports what was just
+  deployed.
+- **Camunda 8:** every `ActivatedJob` carries `getProcessDefinitionVersion()`, so numbers
+  cost nothing on any cluster. The version TAG is NOT on the job: it needs
+  `newProcessDefinitionSearchRequest`, i.e. a cluster with secondary storage. Without it
+  the adapter says so once and specifications naming a tag match nothing. The deploy
+  command reports the version, the tag is read from the model (`zeebe:versionTag`).
+- **Process-Engine-API:** no version number anywhere, and no query for the versions of a
+  process. `TaskInformation.meta` may carry `processDefinitionVersionTag`
+  (`CommonRestrictions`), which the adapter reports as the version - so an exact tag works
+  where the engine supplies it and nothing else does (GAPS.md 19).
+
+The rule this confirms again: an adapter reports what its BPMS knows and nothing more; a
+missing version matches every method, which keeps applications not using the attribute
+untouched.
+
+
+## The versions a BPMS still holds (story 57)
+
+Story 48 asks what version a delivery belongs to. Story 57 asks the other direction: which
+versions does the BPMS still HOLD, what do their models look like, and how many workflows
+run on them - because the application only ever brings its newest model, and the older
+versions are what its methods have to keep serving.
+
+- **Camunda 7:** all three, with the engine at hand. `RepositoryService` lists the
+  definitions of a process and hands out the model of any of them
+  (`getBpmnModelInstance`), `RuntimeService` counts the instances of a definition. Note
+  the deployment case: an engine which deploys nothing because the resources are unchanged
+  reports no definitions, so the adapter has to query the latest version itself - otherwise
+  the check would only run on a boot which changed a model.
+- **Camunda 8:** all three, but only through the query API (secondary storage): the
+  definition search finds the version, `newProcessDefinitionGetXmlRequest` returns its
+  model, and the process instance search counts what runs on it. Without secondary storage
+  the adapter answers `null` and the core says once that this BPMS cannot tell.
+- **Process-Engine-API:** none of it (GAPS.md 19 and 20), and since it reports no deployed
+  version either, the core skips the check for it entirely.
+
+The SPI shape follows the usual rule: the two questions are `default null` on
+`ProcessVersionCatalog`, so an adapter answers what its BPMS knows and switches off what it
+cannot. Reading the model is the adapter's job, deciding whether a method serves it is the
+core's - and both adapters build the task specs of an old model with the same extraction
+they use in `wireBpmn`, so the two directions cannot drift apart.
+
+## A failed transaction, and what the BPMS makes of it (story 59)
+
+A workflow with more than one token has two branches writing the same workflow aggregate.
+With a version attribute on the aggregate that collision is an exception in the commit
+instead of a lost write, and the exception surfaces where VanillaBP commits: a
+`@WorkflowTask` method, a workflow the BPMS started on its own, the `@WorkflowEnded`
+notification. The core recognizes it by asking the platform
+(`TransactionRunner#isConcurrentModification`), logs one guiding ERROR and rethrows it
+UNCHANGED. **VanillaBP never retries it** - a handler may have called a remote API before the
+commit failed, so a quiet retry would repeat that call and hide the failure at once.
+
+What happens next is the BPMS' answer, and it is the same answer it gives for any handler
+that throws:
+
+- **Camunda 7:** the job executor retries the job as configured (three times by default,
+  `camunda:failedJobRetryTimeCycle` per task) and creates an incident when the attempts are
+  used up. The engine delivers tasks INSIDE its own transaction, so the conflict fails that
+  transaction and VanillaBP does not even see it - the guiding message stays out here, and
+  the incident is what the developer gets.
+- **Camunda 8:** the job is reported as failed, the cluster counts its retries down,
+  redelivers it and raises an incident once they are exhausted. VanillaBP owns the
+  transaction, so the message is logged before the job is failed.
+- **Process-Engine-API:** VanillaBP owns the transaction and reports the conflict; what the
+  engine behind the API does with the failed task is that engine's business.
+
+Two consequences for adapter work:
+
+- **A handler has to survive repetition, and the delivery record does not change that.** The
+  record of story 51 is written in the handler's transaction, so a run which failed on a
+  conflict leaves none and the redelivery runs the handler again. Idempotency of side effects
+  stays the application's job.
+- **Reading the model is the adapter's job here as well.** An adapter reports the elements
+  which can put a second token into a running workflow
+  (`WorkflowTaskInvoker#reportConcurrentTokenElements`: non-interrupting boundary event,
+  forking parallel or inclusive gateway, parallel multi-instance activity, non-interrupting
+  event subprocess); the core decides what it means and warns once per BPMN process where the
+  aggregate has no version attribute. An adapter without a model (PEA) reports nothing, and
+  the hint stays silent rather than being guessed.

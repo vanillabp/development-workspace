@@ -72,10 +72,51 @@ reconstruct the id from the variable name). A `VANILLABP_*` variable addressing 
 unknown id fails the startup with a guiding message
 (`MigrationAdapterProperties.validateEnvironmentVariableUsage`).
 
+## Not everything under `vanillabp.*` belongs to an adapter
+
+Some sections configure the PLATFORM and carry no adapter id:
+`vanillabp.outbox.*` (the phase-two outbox), `vanillabp.workflow-adapter-cache.*`
+(the election cache's bounds), `vanillabp.transactions.*` (story 70: whether writes to
+a workflow-aggregate store which VanillaBP's transaction demonstrably does not cover are
+`accepted` or `rejected`, the latter being the default which ends the startup) and
+`vanillabp.delivery.*` (story 76: `release-on-workflow-end`, whether a workflow which
+ended deletes the records of its processed task deliveries instead of leaving them to
+`vanillabp.outbox.retention`; default `false`, because switching it on makes every
+deployed process of the module carry the listener reporting the end). The last two are
+also the pattern for a platform-wide property with a per-module override: the same
+type sits under `vanillabp.workflow-modules.<id>.transactions.*` respectively
+`vanillabp.workflow-modules.<id>.delivery.*`, the module's value wins where it is set,
+and the resolution lives in the core
+(`MigrationAdapterProperties.acceptsUnguardedAggregateWrites`,
+`MigrationAdapterProperties.releasesDeliveryRecordsOnWorkflowEnd`) rather than in either
+platform. They follow the same rule as everything else — modeled
+ONCE in the core (`PhaseTwoOutboxProperties`, `WorkflowAdapterCacheProperties`,
+`TransactionsProperties`, `DeliveryProperties`),
+validated in the core's `validateProperties`, bound directly on Spring Boot and mapped
+from the `@ConfigMapping` interface by the generated `toCore()` on Quarkus (where the
+`@WithDefault` values are pinned against the core's defaults by a test, because they
+are necessarily written twice). Put a new platform-wide property here, never into
+`vanillabp.adapters.<id>.*`.
+
+**Quarkus trap (story 58): never `@Inject` a `@ConfigMapping` interface.** A bean
+injecting it turns the mapping into a STATIC-INIT mapping, and SmallRye then validates
+the whole `vanillabp.*` tree at static init - before the adapter extensions registered
+their RUN_TIME overlays. Every adapter-specific key fails the startup with
+`SRCFG00050: ... does not map to any root`, and the message points at the adapter's
+key, not at the injection which caused it. Read the mapping instead:
+`ConfigProvider.getConfig().unwrap(SmallRyeConfig.class).getConfigMapping(QuarkusMigrationAdapterProperties.class)`.
+
 ## Adapter-specific properties resolve at four levels (most specific wins)
 
-Some adapter properties are not global to the adapter but vary by scope. Example:
-**Camunda 8 job timeout is task-specific**. Such a property may be set at any of four
+Some adapter properties are not global to the adapter but vary by scope. Examples:
+**Camunda 8 job timeout is task-specific**, and so is the CORE's
+`deduplicate-deliveries` (story 51 - whether a repeated task delivery is answered from
+the record instead of running the handler again; default `true`, and a single expensive
+task may be treated differently from the rest) and `outfaded-versions` /
+`outfaded-versions-in-use` (story 57 - which versions of a process this application does
+not serve any more, written in the grammar of the `version` attribute, and what happens
+when workflows still run on one; per workflow, because a version is a property of ONE
+process, and per adapter, because every BPMS counts its own versions). Such a property may be set at any of four
 levels, and the **most specific configured value wins**:
 
 ```

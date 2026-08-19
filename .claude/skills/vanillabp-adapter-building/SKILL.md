@@ -97,10 +97,32 @@ Package `io.vanillabp.integration.adapter.spi` unless noted:
      outbox → core-owned `PhaseTwoRouter` → `MigrationProcessService` (uses the
      adapter ID persisted with the outbox entry — no re-election). Must be
      idempotent (key: moduleId + bpmnProcessId + aggregateId).
-   - `awarenessOfWorkflow(aggregateId)` / `awarenessOfTask(aggregateId, taskId)` —
-     return `WorkflowAwareness`; `BPMS_UNAVAILABLE` only for infrastructure
-     failures (it suppresses fallback election), `UNKNOWN_TO_BPMS` only after a
-     *successful* query found nothing.
+   - `awarenessOfWorkflow(aggregatePersistence, aggregateId)` /
+     `awarenessOfTask(aggregateId, taskId)` — return `WorkflowAwareness`;
+     `BPMS_UNAVAILABLE` only for infrastructure failures (it suppresses fallback
+     election), `UNKNOWN_TO_BPMS` only after a *successful* query found nothing.
+     The workflow probe gets the persistence because the aggregate-ID VARIABLE is
+     named after the aggregate's ID attribute — derive that name from the
+     persistence of the call at hand, NEVER remember it between calls: the election
+     runs before every other SPI method, so a remembered name is the one of
+     whichever aggregate came last (story 54 fixed exactly that in Camunda 8).
+   - `workflowVisibilityDelay()` (optional, `default` = none) — how long an
+     `UNKNOWN_TO_BPMS` of this BPMS may still turn into `ACTIVE`. Report a window
+     where the probe reads an eventually consistent model; the core waits it out
+     only while probing an adapter its `WorkflowAdapterCache` names for that
+     workflow, so an unknown workflow keeps failing fast.
+   - Inbound contexts (`TaskInvocationContext`, `WorkflowEndedContext`,
+     `BpmsInitiatedStartContext`) should answer `getAdapterId()` (`default` null):
+     a delivery proves which BPMS holds the workflow, and the core records it.
+   - `deliversTasksAtLeastOnce()` (`default` false) plus
+     `TaskInvocationContext.getDeliveryId()` (`default` null) — story 51: a BPMS which
+     may hand the same task out again names each delivery by something STABLE across
+     redeliveries and DIFFERENT for a new task instance (C8 job key, PEA task id; a
+     user-task listener uses the listener job, not the user-task key: creation and
+     cancellation of one task would otherwise share a key). The core writes a record in
+     the handler's transaction and answers a repeated delivery from it. An engine
+     delivering inside the application's transaction reports neither and keeps today's
+     behaviour, documented as a decision rather than a gap (Camunda 7).
 
 Skeleton stage: methods that are not implemented yet throw
 `UnsupportedOperationException("<method> is implemented in a later story")` — never
@@ -264,6 +286,69 @@ and new SaaS cluster side by side, or two engine versions). Consequences:
   skill. (The dummy adapter's test-only `dummy-adapter.two-phase-commit` flag is a
   test toggle, not a template for real adapter config.)
 
+## Release lines: versioning an adapter against its BPMS
+
+Decided by story 53 for Camunda 8, and the rule for every adapter facing a BPMS which ships
+minors on a schedule.
+
+**When a line is needed at all.** Only where the BPMS client the adapter compiles against
+decides the lowest BPMS version a build accepts. Camunda documents its clients as compatible
+with clusters of their own version and newer, and says nothing about the other direction, so
+for Camunda 8 the client IS the minimum cluster version. The moment such an adapter uses
+anything only the newest cluster has, every later bugfix in it is deliverable only together
+with a cluster upgrade, which is what forces per-line builds. Where the engine is embedded
+(Camunda 7) or sits behind an API of its own (Process-Engine-API), a fixed pin plus a
+documented range in the README is the whole answer, and the platform gets the same treatment
+against Spring Boot and Quarkus.
+
+**Lines are build variants of ONE source tree, never maintenance branches.** A line is a
+Maven profile selecting the BPMS client pin; the version is `${revision}`, resolved into the
+published POMs by `flatten-maven-plugin`, so CI builds `2.1.0-8.8` and `2.1.0-8.9` from the
+same commit. Every fix exists on every line the moment it is committed, and the version
+number proves it is the same fix. With branches, each of the many changes that have nothing
+to do with the BPMS would have to be cherry-picked, reviewed and released per line.
+
+**The suffix rules.** `<adapter version>-<bpms minor>`, e.g. `2.1.0-8.9`, one artifactId. A
+pre-release appends after the line, `2.2.0-8.10-alpha1`, because Maven sorts an unknown
+qualifier like `preview1` ABOVE the release while `alpha1` sorts below it. artifactId
+suffixes were rejected (moving a user across lines becomes a rename everywhere), classifiers
+too (one POM per version, so lines cannot declare different dependencies).
+
+**The delta rule.** `build-helper-maven-plugin` adds `src/main/java-line-<id>` and
+`src/test/java-line-<id>`. Only two kinds of code belong there: code that cannot compile
+against every supported client, and code that uses something only a newer BPMS has.
+Everything else stays shared, which is the entire point. The line id reaches the runtime as a
+filtered property in the adapter's version descriptor, and it is used in MESSAGES only:
+behaviour follows what the BPMS answers, never what the build believes.
+
+**The API identity rule.** The VanillaBP-facing API is IDENTICAL on every line, checked in CI
+by dumping the public API of each line's JARs and diffing them. A user must never read a
+version suffix to find out which methods exist. Where a line's BPMS cannot do something, the
+same method is there and degrades with a guiding message naming the line, the way
+`cancelUserTask` does on Camunda 8.
+
+**The tripwire.** This scheme is chosen because the per-line delta is small. If the delta
+grows past a handful of classes, or shared code stops compiling on a line in a way a small
+shim cannot bridge, the scheme has become a branch scheme in disguise and the line is to be
+split off deliberately as a maintenance branch. Write that sentence into the adapter's
+README: whoever hits the limit will not be the person who chose the scheme.
+
+**What may be called supported.** Only the BPMS versions the CI actually runs. A newer one is
+"not tested", not "not supported". Per line, the integration tests run against that line's
+pinned BPMS image, taken from the pin rather than written into the tests, and the full matrix
+runs nightly while a pull request runs the current GA line alone.
+
+**Renovate.** Inside a line, updates behave as usual. A client bump across a line boundary
+gets its own branch and label plus `dependencyDashboardApproval`, so it stands as a reminder
+that a BPMS and its applications move together and never merges itself. For consumers the
+adapter ships a shareable preset using regex versioning with the `compatibility` capture
+group, which Renovate never changes, so a consumer of `-8.8` is not offered `-8.9`. Plain
+maven versioning cannot do this: it sorts `2.2.0-8.8` above `2.1.0-8.9`.
+
+**How long a line lives.** A GA line lives until the next minor goes GA, so two GA lines at a
+time plus a published pre-release line against the alpha of the next minor. That is policy,
+not a technical limit, and the README says so next to the table.
+
 ## Testing
 
 - Core logic: plain JUnit 5 + Mockito in `core`.
@@ -271,7 +356,7 @@ and new SaaS cluster side by side, or two engine versions). Consequences:
   `spring-boot-integration/integration-tests/*` for style); no real BPMS needed for
   skeleton tests — assert the context boots with the adapter configured and the
   adapter type/id is resolved.
-- Quarkus: `QuarkusUnitTest` in the deployment module (style:
+- Quarkus: `QuarkusExtensionTest` in the deployment module (style:
   `quarkus-integration/integration-tests/*` and the dummy adapter's deployment
   tests). Suppress build logs via `SuppressOutputExtension` from
   `test-utils`.
@@ -281,8 +366,18 @@ and new SaaS cluster side by side, or two engine versions). Consequences:
 
 ## Documentation conventions
 
-- **Adapter repo root `README.md` is user-facing** (like in Version 1 and like
-  `spi-for-java`): dependency coordinates, configuration, BPMS-specific behavior.
+- **The adapter's WIKI is user-facing, its `README.md` is contributor-facing**
+  (established by story 29, sharpened by story 55) — the opposite of Version 1.
+- An adapter wiki carries exactly two kinds of content: **configuration**
+  (dependencies, minimal configuration, the adapter's keys, and what the BPMN model
+  has to look like for that BPMS, including what of the workflow aggregate reaches
+  it) and **deviations** (one sentence per gap between the BPMS and VanillaBP's
+  platform-wide contract, plus an outlook where there is one, each linking the
+  README section carrying the full explanation). Behavior which holds on every
+  adapter belongs in the main wiki once; rationale, alternatives considered and SPI
+  mechanics belong in the README.
+- A deliberate, fully-conforming adapter mode is NOT a deviation (e.g. Camunda 7's
+  own-datasource two-phase commit) — document it with the configuration enabling it.
 - Module `README.md` files are contributor documentation (concepts, design
   decisions) — same rule as in adapter-platform-integration.
 - The PEA adapter additionally maintains `GAPS.md`: features that cannot be
