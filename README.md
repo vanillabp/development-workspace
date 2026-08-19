@@ -7,10 +7,11 @@ development workspace. It bundles, as git submodules, the active VanillaBP
 repositories, plus two things that are developed here directly:
 
 - **`.claude/skills/`** — shared Claude Code skills for working on VanillaBP.
-- **`dev-containers/`** — tooling that spins up one **isolated IntelliJ
-  DevContainer per story** on top of this multi-repo workspace. It is already
-  configured for this workspace in `dev-containers/.env.sh`; the generic,
-  forkable template lives upstream at `Phactum/dev-containers`.
+- **`dev-containers/`** — the project-specific configuration
+  (`devcontainers-config.json`) for the tooling that spins up one **isolated
+  IntelliJ DevContainer per story** on top of this multi-repo workspace. The
+  scripts themselves are **not** checked in here; they are cloned once from
+  `Phactum/dev-containers` and put on your PATH.
 
 Everything else in the workspace is pulled in as a submodule. Sibling
 directories that are **not** part of this repo (legacy repos
@@ -79,14 +80,16 @@ fetches/clones pull from.
 
 # DevContainer tooling (`dev-containers/`)
 
-Helper scripts to spin up one **isolated IntelliJ DevContainer per story** on
-top of this workspace. Project-specific values live in
-**`dev-containers/.env.sh`**.
+Tooling to spin up one **isolated IntelliJ DevContainer per story** on top of
+this workspace. The scripts are **not** checked in here — they are cloned once
+from [`Phactum/dev-containers`](https://github.com/Phactum/dev-containers) and
+put on your PATH. This repo only carries the project-specific configuration in
+**`dev-containers/devcontainers-config.json`**.
 
-Usage:
+Usage (run from the workspace root, with the scripts on your PATH):
 
 ```shell
-./dev-containers/spawn-container.sh feature/new-feature-branch
+spawn-workspace.sh feature/new-feature-branch
 ```
 
 Each story gets:
@@ -101,24 +104,26 @@ Each story gets:
 
 ## Files
 
-| File / Directory                        | Purpose                                                          |
-|-----------------------------------------|------------------------------------------------------------------|
-| `dev-containers/spawn-workspace.sh`     | Create a new story workspace + DevContainer config from a branch |
-| `dev-containers/dispose-workspace.sh`   | Tear down a story workspace, its worktrees, and its container    |
-| `dev-containers/.env.sh`                | Project-specific config (names, repos, ports, base image, …)     |
-| `dev-containers/README.md.tpl`          | Template for the welcome README placed at each new workspace root |
-| `dev-containers/initialize.sh`          | Optional hook run before Maven warmup builds (create if needed)  |
-| `dev-containers/runConfigurations/*.xml`| IntelliJ run configs copied verbatim into each new workspace     |
+Only project-specific files live here; the scripts come from the upstream clone
+on your PATH.
 
-Both scripts source `.env.sh` at startup. See `dev-containers/CLAUDE.md` and the
-long header comment in `spawn-workspace.sh` for the internal design; the full
-list of configuration variables is documented in `.env.sh` itself.
+| File / Directory                          | Purpose                                                          |
+|-------------------------------------------|------------------------------------------------------------------|
+| `dev-containers/devcontainers-config.json`| Project-specific config (names, repos, ports, base image, …)     |
+| `dev-containers/README.md.tpl`            | Template for the welcome README placed at each new workspace root |
+| `dev-containers/initialize.sh`            | Optional hook run before Maven warmup builds (create if needed)  |
+| `dev-containers/runConfigurations/*.xml`  | IntelliJ run configs copied verbatim into each new workspace     |
+
+Both scripts read `devcontainers-config.json` at startup. The full list of
+configuration settings is documented in that file itself; for the tooling's
+internal design see the upstream `Phactum/dev-containers` (its `README.md` and
+the header comment in `spawn-workspace.sh`).
 
 ### GitLab integration is optional
 
-GitLab integration kicks in only when **both** `GLAB_HOSTNAME` **and**
-`GLAB_VERSION` are non-empty in `.env.sh`. With either left empty the
-spawn script:
+GitLab integration kicks in only when **both** `glabHostname` **and**
+`glabVersion` are non-empty in `devcontainers-config.json`. With either left
+empty the spawn script:
 
 - skips the `glab` install in the Dockerfile,
 - skips the bind-mount of the host's glab-cli config,
@@ -133,15 +138,15 @@ the markers and the content between them are dropped.
 ### IntelliJ run configurations
 
 `dev-containers/runConfigurations/` holds the XMLs that end up in
-`<new-workspace>/.idea/runConfigurations/`. The `RUN_CONFIGS` array in
-`.env.sh` lists which files get copied (in order). The XMLs may use the
-placeholders for host ports defined in `.env.sh`
+`<new-workspace>/.idea/runConfigurations/`. The `runConfigs` array in
+`devcontainers-config.json` lists which files get copied (in order). The XMLs
+may use the placeholders for host ports defined in `devcontainers-config.json`
 (e.g. `__PORT_4200__`, `__PORT_8080__`) — `spawn-workspace.sh` substitutes them
 to the actual port-offsetted host ports when copying.
 
 To add/change run configs:
 1. Drop a new XML into `dev-containers/runConfigurations/` (or edit an existing one).
-2. Add its filename to `RUN_CONFIGS` in `.env.sh`.
+2. Add its filename to `runConfigs` in `devcontainers-config.json`.
 
 *Hint:* To get an XML from an existing run configuration one can use the
 `store as project file` feature:
@@ -164,9 +169,6 @@ the Maven warmup builds, with the workspace root as the working directory.
 Use it for one-time setup that must precede Maven dependency resolution —
 for example starting a Docker service that hosts an artifact proxy, seeding a
 local registry, or pulling Docker images while the network is still available.
-
-The file is opt-in: it is not created by default. Just add `initialize.sh`
-next to `spawn-workspace.sh` to activate the hook for all future spawns.
 
 ### Workspace welcome README
 
@@ -192,8 +194,8 @@ templates (see `spawn-workspace.sh:substitute_placeholders`).
   the container forwards the agent socket so passphrase-protected keys work
   without prompting.
 - **`glab` login** (only needed when GitLab integration is enabled in
-  `.env.sh`): `glab auth login --hostname <GLAB_HOSTNAME>`. The config is
-  bind-mounted into the container so the login flows in both directions.
+  `devcontainers-config.json`): `glab auth login --hostname <glabHostname>`. The
+  config is bind-mounted into the container so the login flows in both directions.
 
 ### Workspace layout the scripts assume
 
@@ -219,9 +221,10 @@ Both scripts pick the workspaces root in this priority order:
 1. **`--workspaces-root <path>`** CLI flag — highest priority, overrides everything.
 2. **`$<PROJECT_SHORT>_WORKSPACES_ROOT`** environment variable — recommended for
    daily use (export once in your shell profile).
-3. **Auto-detect** — the parent of the directory holding this script. Since
-   `dev-containers/` lives inside the source workspace, two directory levels
-   up gives the workspaces root.
+3. **Auto-detect** — walks up from the directory holding
+   `devcontainers-config.json` to the directory named `<PROJECT_NAME>` (the
+   source workspace) and takes its parent. Since `dev-containers/` lives inside
+   the source workspace, that resolves the workspaces root with no configuration.
 
 Each invocation prints the resolved target directory and asks for
 confirmation before doing anything. Press Enter to accept, type `n` to
@@ -232,36 +235,36 @@ abort. Pass `--yes` (or `-y`) to skip the prompt in scripted runs.
 ### Create a workspace
 
 ```sh
-dev-containers/spawn-workspace.sh [--workspaces-root <path>] [--yes] <branch-name>
+spawn-workspace.sh [--workspaces-root <path>] [--yes] <branch-name>
 ```
 
 Base refs for new branches are not on the CLI — each repo brings its own
-in the `REPOS` map (`<repo>:<base-ref>`) in `.env.sh`.
+in the `repos` list (`{ "name": …, "baseRef": … }`) in `devcontainers-config.json`.
 
-A `REPOS` entry with an **empty base-ref** (e.g. `"hal-npm-packages:"`) is not a
-git repo: no worktree is created — the host directory is bind-mounted into the
-workspace at the same path instead. Use it for pre-built artifacts or other
-non-versioned folders that must be visible/buildable in the container. Disposing
-the workspace leaves the host source untouched.
+A `repos` entry with an **empty `baseRef`** (`"baseRef": ""`) is not a git repo:
+no worktree is created — the host directory is bind-mounted into the workspace at
+the same path instead. Use it for pre-built artifacts or other non-versioned
+folders that must be visible/buildable in the container. Disposing the workspace
+leaves the host source untouched.
 
 Examples:
 
 ```sh
 # Branch already exists locally or on origin -> reuses / tracks it
-dev-containers/spawn-workspace.sh feature/PRJ-4711_example-story
+spawn-workspace.sh feature/PRJ-4711_example-story
 
 # Brand-new branch: each repo forks from its own configured base ref
-dev-containers/spawn-workspace.sh feature/PRJ-4711_new-story
+spawn-workspace.sh feature/PRJ-4711_new-story
 
 # Point at a non-default workspaces directory (one-shot override)
-dev-containers/spawn-workspace.sh --workspaces-root /opt/dev feature/PRJ-4711_new-story
+spawn-workspace.sh --workspaces-root /opt/dev feature/PRJ-4711_new-story
 
 # Same, but via env var (set it once in your shell profile)
 export PRJ_WORKSPACES_ROOT=/opt/dev # PRJ is <PROJECT_SHORT>
-dev-containers/spawn-workspace.sh feature/PRJ-4711_new-story
+spawn-workspace.sh feature/PRJ-4711_new-story
 
 # Skip the confirmation prompt (CI / batch use)
-dev-containers/spawn-workspace.sh --yes feature/PRJ-4711_new-story
+spawn-workspace.sh --yes feature/PRJ-4711_new-story
 ```
 
 Open the new workspace in IntelliJ via **JetBrains Gateway → Dev Containers →
@@ -296,37 +299,37 @@ their documentation.
 ### Dispose a workspace
 
 ```sh
-dev-containers/dispose-workspace.sh [--workspaces-root <path>] [--force] [--delete-branch] [--keep-container] [--keep-image] [--yes] <target>
+dispose-workspace.sh [--workspaces-root <path>] [--force] [--delete-branch] [--keep-container] [--keep-image] [--yes] <target>
 ```
 
 Examples:
 
 ```sh
 # Default: refuse if any worktree is dirty, keep branch, remove container + volumes + image
-dev-containers/dispose-workspace.sh feature/PRJ-4711_example-story
+dispose-workspace.sh feature/PRJ-4711_example-story
 
 # Also delete the local branch from each source repo
-dev-containers/dispose-workspace.sh --delete-branch feature/PRJ-4711_example-story
+dispose-workspace.sh --delete-branch feature/PRJ-4711_example-story
 
 # Force-remove despite uncommitted changes (you lose them)
-dev-containers/dispose-workspace.sh --force feature/PRJ-4711_example-story
+dispose-workspace.sh --force feature/PRJ-4711_example-story
 
 # Leave the Docker container alone (IntelliJ still has it open)
-dev-containers/dispose-workspace.sh --keep-container feature/FLOW-4711_example-story
+dispose-workspace.sh --keep-container feature/FLOW-4711_example-story
 
 # Remove container and volumes but keep the image layer cache for a faster next rebuild
-dev-containers/dispose-workspace.sh --keep-image feature/FLOW-4711_example-story
+dispose-workspace.sh --keep-image feature/FLOW-4711_example-story
 
 # Use the Docker container name or ID instead of the branch
-dev-containers/dispose-workspace.sh PRJ-FLOW-4711_example-story
-dev-containers/dispose-workspace.sh a3f2b1c4d5e6
+dispose-workspace.sh PRJ-FLOW-4711_example-story
+dispose-workspace.sh a3f2b1c4d5e6
 
 # Non-default workspaces root via flag or env var
-dev-containers/dispose-workspace.sh --workspaces-root /opt/dev feature/FLOW-4711_example-story
-PRJ_WORKSPACES_ROOT=/opt/dev dev-containers/dispose-workspace.sh feature/FLOW-4711_example-story  # PRJ = <PROJECT_SHORT>
+dispose-workspace.sh --workspaces-root /opt/dev feature/FLOW-4711_example-story
+PRJ_WORKSPACES_ROOT=/opt/dev dispose-workspace.sh feature/FLOW-4711_example-story  # PRJ = <PROJECT_SHORT>
 
 # Skip the confirmation prompt
-dev-containers/dispose-workspace.sh --yes feature/FLOW-4711_example-story
+dispose-workspace.sh --yes feature/FLOW-4711_example-story
 ```
 
 Accepts any of: full branch name (`feature/PRJ-…`), branch leaf (`PRJ-…`),
@@ -358,7 +361,7 @@ their documentation.
 | Project dropdown shows `<PROJECT_NAME> (Devcontainer: <id>)` after IDE restart | JetBrains Gateway 2026.1 ignores `frameTitle` pre-connect | Open the container once; the proper name is restored until the next restart |
 | "Datei wurde extern geändert"-Dialog right after IDE save | bind-mount stat drift triggered by safe-write rename pattern | **HOST IntelliJ (ijent Dev Container mode):** Settings → Appearance & Behavior → System Settings → uncheck "Use 'safe write'", restart the IDE. Global, one-time, applies to every project. |
 | `IllegalStateException` on EDT on first save (MavenUtil/EelProvider stack), then "Spotless applied" notification but file unchanged | Spotless Applier (Lipiridi 1.2.3) is not Eel-aware — its on-save service init calls Maven resolution on EDT, and its `-DspotlessIdeHook` argument leaks the `//$devcontainer.ij/...` virtual scheme into the in-container `mvn` process | Disable "Actions on Save → Run Spotless" for the remote project. Use IntelliJ's built-in Reformat / Optimize-imports on save and `mvn spotless:apply` before commit. |
-| IntelliJ Database "Test Connection" fails with `RemoteJdbcServer … No such file or directory (os error 2)`, host JBR path + `/workspaces/...` cwd | ijent Dev Container mode: the Database plugin execs the **host** JBR path inside the container to introspect, but a macOS binary can't run on Linux → ENOENT. | Don't introspect in-container. Create an **SSH-tunnel data source** (tunnel → `localhost:<2222+offset>` user `vscode`; DB host `127.0.0.1:3307`); add `2222` to `HOST_PORTS` in `.env.sh` to publish the tunnel port. See the generated workspace README "Database access". |
+| IntelliJ Database "Test Connection" fails with `RemoteJdbcServer … No such file or directory (os error 2)`, host JBR path + `/workspaces/...` cwd | ijent Dev Container mode: the Database plugin execs the **host** JBR path inside the container to introspect, but a macOS binary can't run on Linux → ENOENT. | Don't introspect in-container. Create an **SSH-tunnel data source** (tunnel → `localhost:<2222+offset>` user `vscode`; DB host `127.0.0.1:3307`); add `2222` to `hostPorts` in `devcontainers-config.json` to publish the tunnel port. See the generated workspace README "Database access". |
 
 ## Notes
 

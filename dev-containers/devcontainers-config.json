@@ -1,0 +1,122 @@
+{
+    // ==========================================================================
+    // devcontainers-config.json -- project-specific configuration, read by all four
+    // scripts (spawn-workspace.sh / .ps1 and dispose-workspace.sh / .ps1).
+    //
+    // FORMAT: JSON with full-line "//" comments (JSONC). Trailing comments after
+    // a value are NOT supported -- put comments on their own line. An optional
+    // setting is disabled by omitting its key entirely (or setting it to null).
+    //
+    // Converted from the legacy dev-containers/.env.sh; that file is now
+    // obsolete and can be deleted.
+    // ==========================================================================
+
+    // --- Project identity ---------------------------------------------------
+
+    // Source workspace directory name AND the prefix of every story workspace
+    // (story workspace = "<projectName>-<branch-leaf>"). Also used for the
+    // in-container workspace path /workspaces/<projectName>.
+    "projectName": "VanillaBP2",
+
+    // Short project label: Docker container name "<projectShort>-<leaf>",
+    // IntelliJ project name, per-story Claude volume prefix, and the
+    // "<PROJECTSHORT>_WORKSPACES_ROOT" env var.
+    "projectShort": "VBP2",
+
+    // --- Repos to mount as worktrees ----------------------------------------
+
+    // Source repos under <workspaces-root>/<projectName>/<name>/ that get a
+    // worktree in every story workspace, plus the per-repo base ref used when
+    // the spawn branch is brand new (existing branches are reused regardless).
+    // Each baseRef resolves as origin/<baseRef> first, then local <baseRef>;
+    // missing on this repo -> falls back to origin/HEAD. Missing source repos
+    // are silently skipped.
+    "repos": [
+        { "name": "spi-for-java", "baseRef": "main" },
+        { "name": "adapter-platform-integration", "baseRef": "main" },
+        { "name": "adapter-platform-integration.wiki", "baseRef": "master" },
+        { "name": "process-engine-api-adapter", "baseRef": "main" },
+        { "name": "process-engine-api-adapter.wiki", "baseRef": "master" },
+        { "name": "camunda7-adapter", "baseRef": "main" },
+        { "name": "camunda7-adapter.wiki", "baseRef": "master" },
+        { "name": "camunda8-adapter", "baseRef": "main" },
+        { "name": "camunda8-adapter.wiki", "baseRef": "master" },
+        { "name": "blueprints", "baseRef": "main" },
+        { "name": "blueprints-organisation-page", "baseRef": "main" }
+    ],
+
+    // --- Warmup builds ------------------------------------------------------
+
+    // Build steps run by post-create.sh, in dependency order (dependents after
+    // their parents). Each entry sets EXACTLY ONE of "mvn-goal" or "command":
+    //   { "repo": "<repo>", "mvn-goal": "<goal>" }  -> `mvn ${MVN_FLAGS} <goal>`
+    //        inside <repo> (inherits -ntp / skipTests / spotless-skip).
+    //   { "repo": "<repo>", "command": "<raw bash command>" }  -> run verbatim,
+    //        no mvn/MVN_FLAGS injection (non-Maven steps, multi-pom compounds).
+    // Setting both or neither is a hard error. An explicit [] disables warmup
+    // builds; omitting the key lets the mono-repo auto-build kick in.
+    "builds": [
+        { "repo": "spi-for-java", "mvn-goal": "install" },
+        { "repo": "adapter-platform-integration", "mvn-goal": "compile" },
+        { "repo": "process-engine-api-adapter", "mvn-goal": "compile" },
+        { "repo": "camunda7-adapter", "mvn-goal": "compile" },
+        { "repo": "camunda8-adapter", "mvn-goal": "compile" },
+        { "repo": "blueprints", "mvn-goal": "compile" }
+    ],
+
+    // --- Host ports + labels ------------------------------------------------
+
+    // Ports the container publishes on the host. The spawn scripts pick an
+    // offset (multiple of portOffsetStep) where ALL of these are free.
+    // "label" shows up in JetBrains' Services view and the workspace README.
+    "hostPorts": [
+        { "port": 4200, "label": "Angular" },
+        { "port": 3000, "label": "React" },
+        { "port": 8079, "label": "bc-simulator" },
+        { "port": 8080, "label": "application" },
+        { "port": 9080, "label": "bc" },
+        { "port": 2222, "label": "ssh-tunnel" }
+    ],
+
+    // Step size between candidate port offsets (500..10000). A large step is
+    // collision-proof by construction.
+    "portOffsetStep": 10000,
+
+    // Login shell IntelliJ's built-in terminal opens. Omit to let JetBrains
+    // auto-detect (which prefers the zsh the base image ships); pin to bash.
+    "terminalShell": "/bin/bash",
+
+    // --- DevContainer image & tooling versions ------------------------------
+
+    // Base image for the container. Must include a JDK (Maven is layered on).
+    "baseImage": "mcr.microsoft.com/devcontainers/java:1-21-bookworm",
+
+    // Node version installed via the devcontainers/node feature.
+    "nodeFeatureVersion": "24",
+
+    // --- GitLab integration (optional) --------------------------------------
+
+    // Both keys must be non-empty to enable glab. Disabled here.
+    // "glabVersion":  "1.99.0",
+    // "glabHostname": "gitlab.example.com",
+
+    // --- GitHub integration (optional) --------------------------------------
+
+    // gh (GitHub CLI) version installed by the Dockerfile. gh always targets
+    // github.com; the host's ~/.config/gh is bind-mounted so 'gh auth login' is
+    // shared. See https://github.com/cli/cli/releases for versions.
+    "ghVersion": "2.97.0",
+
+    // --- IntelliJ run configurations ----------------------------------------
+
+    // Filenames of XML run-configs under dev-containers/runConfigurations/,
+    // copied verbatim into the workspace's .idea/runConfigurations/.
+    "runConfigs": [ ],
+
+    // --- Forwarded environment variables ------------------------------------
+
+    // Host env vars forwarded into the container (remoteEnv + containerEnv) and
+    // resolved in "${NAME}" placeholders in ~/.npmrc at spawn time. Useful for
+    // registry tokens (e.g. VBP_GITHUB_TOKEN). Empty = no forwarding.
+    "forwardedEnvVars": [ ]
+}

@@ -46,3 +46,5 @@
 !/process-engine-api-adapter.wiki/
 !/renovate-config/
 !/spi-for-java/
+
+.DS_Store
