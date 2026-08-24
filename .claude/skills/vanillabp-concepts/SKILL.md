@@ -92,7 +92,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   files of a workflow module during the deployment pipeline
   (`readBpmn` → `prepareBpmn` → `wireBpmn` → `deployResources` →
   `startWorkflowProcessing`).
-- **`TransactionRunner` / `TransactionRunnerAware<A>` (story 70):** the transaction
+- **`TransactionRunner` / `TransactionRunnerAware<A>`:** the transaction
   VanillaBP wraps around everything it does with one aggregate (delivery lookup,
   `loadById`, handler, `save`, delivery record, outbox entry). Lives in the business SPI,
   so an application whose aggregates are stored in a system the platform does not manage
@@ -139,7 +139,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   converter, registered at bean creation); START uses the persisted adapter ID,
   future operations probe adapters. Default implementations per
   platform/persistence; config `vanillabp.outbox.*`.
-- **`TaskDeliveryLog` / `TaskDelivery` / `TaskDeliveryLogAware` (story 51):** the
+- **`TaskDeliveryLog` / `TaskDelivery` / `TaskDeliveryLogAware`:** the
   INBOUND counterpart of the outbox - durable memory of the task deliveries the core
   processed, so a redelivery of work an at-least-once BPMS never learned the result of
   reports the recorded outcome instead of running the `@WorkflowTask` method again. The
@@ -157,7 +157,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   collection `vanillabp-task-deliveries`, settings shared with `vanillabp.outbox.*`
   (create-schema, retention). Deliberately NOT gruelbox on Spring/JPA: gruelbox
   dispatches calls, a delivery record is read back.
-- **Two writers on one workflow aggregate (story 59):** a BPMN process holding more
+- **Two writers on one workflow aggregate:** a BPMN process holding more
   than one token has two branches writing the same aggregate - one in the transaction
   VanillaBP owns for its task, one in the transaction the application opens around its
   API call - and a persistence layer writing the whole record loses what the branch
@@ -171,7 +171,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   the platform's `TransactionRunner#isConcurrentModification`). Deliberately NO retry
   inside the framework: the BPMS retries and ends in an incident, and a handler may have
   called a remote API before the commit failed. Where the BPMS owns the transaction (C7
-  embedded) VanillaBP never sees the conflict. The delivery record of story 51 rolls back
+  embedded) VanillaBP never sees the conflict. The delivery record rolls back
   with the aggregate, so the retried delivery runs the handler again - which is the
   boundary between the two stories, documented on the wiki page `Workflow-aggregates`.
 - **Workflow-ended notification:** optional `@WorkflowEnded` method (spi-for-java,
@@ -190,7 +190,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   instance-targeted variant - Camunda 8 cannot do it. SCOPE = the workflow module of
   the calling process service (own client + tenant per adapter, module prefix applied
   in `use-prefix`); crossing module boundaries is the application's job.
-- **`aggregateChanged` (story 44):** `ProcessService.aggregateChanged(aggregate)` pushes
+- **`aggregateChanged`:** `ProcessService.aggregateChanged(aggregate)` pushes
   the values shared per the sync model at the workflow's GLOBAL scope,
   `aggregateChanged(aggregate, taskId)` in the scope the task RUNS in (process,
   embedded subprocess, or ONE iteration of a multi-instance embedded subprocess - never
@@ -214,7 +214,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   execution listener on the start event, business key set from the aggregate; C8:
   injected `zeebe:executionListener` (eventType `end`, `start` is rejected there);
   PEA: deployment fails guiding (gap 16).
-- **Process version (`version` attribute, story 48):** `@WorkflowTask`,
+- **Process version (`version` attribute):** `@WorkflowTask`,
   `@WorkflowStartedByBpms` and `@WorkflowEnded` carry `version`, matched against the
   version of the deployed process DEFINITION as the BPMS counts it (C7/C8: integers
   upwards per process id) - never a business version. Core: `VersionRange` (parse once,
@@ -243,7 +243,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   `fail` (default) | `warn` (non-first-priority adapter may fail deployment
   without preventing boot). Retry/backoff configuration (`vanillabp.resilience.*`)
   was removed ("optimize late") - it returns per adapter with the first consumer
-  (story 22).
+  through the phase-two outbox.
 - **Dummy adapter:** log-only adapter in each platform's integration-tests; template
   for adapter authors and test double for infrastructure tests without a real BPMS.
 
@@ -272,4 +272,5 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   configuration, platform guides). Module `README.md` files = contributor/development
   documentation.
 
-Full analysis incl. implementation status: `/workspaces/VanillaBP2/ANALYSE.md`.
+Each repository's `README.md` carries the contributor documentation for its modules,
+and the decision log at its end records the decisions the code cites.

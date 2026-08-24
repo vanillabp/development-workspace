@@ -32,8 +32,10 @@ description: Development rules for implementing VanillaBP Version 2 features —
 Strategy and patterns live in the `vanillabp-testing` skill — read it before writing
 any test. Core points: feature/acceptance tests (E2E) first for everything
 user-facing; integration tests for the rest; unit tests for edge cases; **>90%
-coverage per platform, measured separately** (Spring tests must not cover Quarkus
-code); adapters test primarily at the migration-adapter SPI boundary; every test class
+instruction coverage per platform, measured separately** (Spring tests must not cover
+Quarkus code), enforced by the `test-coverage-report/coverage-gate` module of every
+repository, which also fails a build whose aggregates forgot a module producing
+coverage data; adapters test primarily at the migration-adapter SPI boundary; every test class
 uses `test-utils` (`SuppressOutputExtension` etc.). Platform tests use the **dummy
 adapter** (and, for Spring, the dummy extension) instead of a real BPMS; MongoDB/C8
 tests use Testcontainers. Quarkus log suppression: see
@@ -43,8 +45,8 @@ tests use Testcontainers. Quarkus log suppression: see
 
 ```bash
 # Build order matters: spi-for-java before adapter-platform-integration.
-cd spi-for-java && mvn install verify
-cd adapter-platform-integration && ./mvnw install verify   # install, NOT package:
+cd spi-for-java && mvn install
+cd adapter-platform-integration && ./mvnw install           # install, NOT package:
                                                            # Quarkus ITs load modules
                                                            # from the local Maven repo
 
@@ -55,6 +57,16 @@ mvn verify -pl <module-path> -Dit.test=ITClassName
 # Formatting (Spotless fails the build on violations)
 mvn spotless:apply
 ```
+
+`install` alone, never `install verify`: install runs every phase verify has, so
+naming both walks two lifecycles per module. The tests skip their second run, the
+compiler does not, and every warning is then reported twice.
+
+Deprecating with `forRemoval = true` obliges the same commit to add
+`@SuppressWarnings("removal")` to every implementation and every call site which is
+meant to stay until the removal. The `removal` lint is mandatory, and `@Deprecated`
+on an overriding method does not silence it, so without the suppression the
+deprecation shows up in every later build and hides the next real one.
 
 Java 21 for adapter-platform-integration; `spi-for-java` targets Java 17. Fluent API
 calls with more than one method call: one line per call (Spotless-enforced). Import
@@ -73,6 +85,16 @@ SQL) — better readability.
 - Versions: all artifacts are aligned to 2.0.0-SNAPSHOT (`spi-for-java`:
   1.1.1-SNAPSHOT).
 
+**A javadoc, README or wiki sentence which promises behaviour is part of the
+behaviour.** Either a test fails when it stops being true, or the sentence says that it
+is an assumption and what would disprove it. A story which changes behaviour re-reads
+the claims about that behaviour before it is done. Name the test in the claim where it
+is not obvious (`see FooTest#bar`), delete a sentence which promises nothing, and treat
+a measurement as a statement about a measured past which needs its context (version,
+setup, date) rather than a test. Both SPIs, the adapters' decisions and
+all four wikis once for this; `adapter-platform-integration/CONTRIBUTING.md` carries the
+rule for contributors.
+
 ## Configuration & error messages
 
 Validate configuration as early as possible (Spring Boot: at startup, even for values
@@ -84,18 +106,20 @@ VanillaBP core concept — see the `vanillabp-config-validation` skill. Never ad
 
 ## Known pitfalls (current state)
 
-- `ProcessService` operations beyond `startWorkflow` (message correlation,
-  complete/cancel tasks, viewer/history) throw `UnsupportedOperationException`
-  ("not yet supported by VanillaBP 2") from the shared core base
-  `ProcessServiceBase` — they are upcoming feature stories.
-- The fallback election for existing workflow instances is NOT implemented yet:
-  `MigratableProcessService.awarenessOfTask/awarenessOfWorkflow` exist as SPI
-  (enum `WorkflowAwareness` with `ACTIVE`/`COMPLETED`/`UNKNOWN_TO_BPMS`/
-  `BPMS_UNAVAILABLE`; `BPMS_UNAVAILABLE` must never trigger fallback to the
-  next adapter) but the core does not call them yet.
-- Workflow-level configuration (`vanillabp.workflow-modules.<id>.workflows.*`) is
-  rejected at startup ("not yet supported") — implement it before removing the
-  rejection in both platform transformers.
+- `ProcessServiceBase` has no "not yet supported" stubs left: every
+  operation of `ProcessService` is served by both platform beans, and the base
+  declares them abstract, so a platform bean forgetting one does not compile. What a
+  single BPMS cannot do is refused by ITS adapter, with a message naming the adapter.
+- The election IS implemented and runs through the core's `WorkflowLocator`: the
+  probes of `MigratableProcessService` take a `WorkflowScope` and an
+  adapter answers for that scope only, everything else being `UNKNOWN_TO_BPMS`
+  (`BPMS_UNAVAILABLE` must never fall back to the next adapter). The contract is in
+  the type javadoc of `MigratableProcessService` and held by
+  `ElectionScopeContractTest`.
+- Workflow-level configuration (`vanillabp.workflow-modules.<id>.workflows.*`) works
+  now; the former "not yet supported" rejection is gone and regression
+  tests in `MigrationAdapterPropertiesTest` and `VanillaBpConfigurationBindingTest`
+  keep it that way.
 - Two SPI modules exist: business code implements interfaces from
   `io.vanillabp:vanillabp-integration-spi` (package `io.vanillabp.integration.spi`,
   e.g. `AggregatePersistenceAware`); adapters implement

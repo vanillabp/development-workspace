@@ -10,8 +10,8 @@ Read `vanillabp-concepts` (architecture, glossary) and `vanillabp-bpms-character
 
 ## Repositories and workspace conventions
 
-- Each adapter is an **own Git repository**, cloned as a sibling directory of
-  `/workspaces/VanillaBP2` (like `adapter-platform-integration`). Initialize with
+- Each adapter is an **own Git repository**, cloned as a sibling of
+  `adapter-platform-integration` in the workspace root. Initialize with
   `git init -b main`.
 - The Camunda adapter repos will later **replace `main` of the existing GitHub repos**
   `vanillabp/camunda7-adapter` and `vanillabp/camunda8-adapter` (Camunda Community
@@ -22,8 +22,8 @@ Read `vanillabp-concepts` (architecture, glossary) and `vanillabp-bpms-character
   groupId `io.vanillabp`.
 - All adapter artifacts are versioned **2.0.0-SNAPSHOT** (aligned with
   adapter-platform-integration).
-- After creating a new adapter repo, add it to the repository list in
-  `/workspaces/VanillaBP2/CLAUDE.md`.
+- After creating a new adapter repo, add it to the repository list in the workspace's
+  `CLAUDE.md`.
 
 ## Module layout (mirror of the platform split)
 
@@ -61,8 +61,9 @@ io.vanillabp:vanillabp-quarkus-integration:2.0.0-SNAPSHOT       (quarkus runtime
 io.vanillabp:vanillabp-quarkus-integration-deployment:2.0.0-SNAPSHOT (quarkus deployment module)
 ```
 
-Build order: `spi-for-java` → `adapter-platform-integration` (`./mvnw install
-verify`) → adapter repos (`mvn install verify`). Copy the Spotless setup
+Build order: `spi-for-java` → `adapter-platform-integration` (`./mvnw install`) →
+adapter repos (`mvn install`). `install` alone: it already runs every phase `verify`
+has, and naming both compiles every module twice. Copy the Spotless setup
 (`formatting_conventions.xml` + plugin config) from adapter-platform-integration so
 formatting rules are identical.
 
@@ -105,7 +106,7 @@ Package `io.vanillabp.integration.adapter.spi` unless noted:
      named after the aggregate's ID attribute — derive that name from the
      persistence of the call at hand, NEVER remember it between calls: the election
      runs before every other SPI method, so a remembered name is the one of
-     whichever aggregate came last (story 54 fixed exactly that in Camunda 8).
+     whichever aggregate came last - a defect Camunda 8 actually had.
    - `workflowVisibilityDelay()` (optional, `default` = none) — how long an
      `UNKNOWN_TO_BPMS` of this BPMS may still turn into `ACTIVE`. Report a window
      where the probe reads an eventually consistent model; the core waits it out
@@ -115,7 +116,7 @@ Package `io.vanillabp.integration.adapter.spi` unless noted:
      `BpmsInitiatedStartContext`) should answer `getAdapterId()` (`default` null):
      a delivery proves which BPMS holds the workflow, and the core records it.
    - `deliversTasksAtLeastOnce()` (`default` false) plus
-     `TaskInvocationContext.getDeliveryId()` (`default` null) — story 51: a BPMS which
+     `TaskInvocationContext.getDeliveryId()` (`default` null) — a BPMS which
      may hand the same task out again names each delivery by something STABLE across
      redeliveries and DIFFERENT for a new task instance (C8 job key, PEA task id; a
      user-task listener uses the listener job, not the user-task key: creation and
@@ -150,10 +151,10 @@ Template to study:
    `AdapterDeploymentService` as an **individual element bean**. NEVER register a
    bean of type `List<AdapterDeploymentService<...>>` — Spring's collection
    injection only collects element beans, so List beans break as soon as a second
-   adapter type is on the classpath (= the migration scenario; review finding B1).
-   The platform collects all element beans via `ObjectProvider` streams. Until the
-   adapter-config-model story (26d) introduces per-id element beans, build the one
-   instance for the first configured adapter id of this adapter's type.
+   adapter type is on the classpath (= the migration scenario). The platform collects
+   all element beans via `ObjectProvider` streams. Register ONE element bean per
+   configured adapter id of this adapter's type, named after that id - never a single
+   instance for whichever id happens to come first.
 3. **Process service** — an element bean of the adapter's
    `MigratableProcessService` implementation (the platform injects all of them into
    every `ProcessServiceSpringBean`). Same rule: element beans only. The election
@@ -184,14 +185,14 @@ Template:
 ## Registration pitfalls (verified while building the C7/C8/PEA skeletons)
 
 - **Configuration shape:** `vanillabp.adapters` binds to a
-  `Map<String, AdapterConfigProperties>` in the CORE model (story 19: the tree is
+  `Map<String, AdapterConfigProperties>` in the CORE model (the tree is
   modeled once, in `MigrationAdapterProperties`; Spring binds the core POJOs
   directly, Quarkus maps its `@ConfigMapping` interface onto them via a generated
   MapStruct `toCore()`). The shorthand `vanillabp.adapters.<id>: <type>`
   does NOT bind — always use `vanillabp.adapters.<id>.type: <type>` (the adapter id
   is the map key, the type a sub-property). The id→type view is
   `MigrationAdapterProperties.adapterTypes()` (type defaults to the id).
-- **Adapter config OVERLAY (story 19, consumed by 26d):** adapters contribute their
+- **Adapter config OVERLAY:** adapters contribute their
   own keys (connection settings etc.) to the SAME tree
   (`vanillabp.adapters.<id>.<key>` — never a parallel namespace) by binding an
   adapter-owned overlay of the `vanillabp` prefix:
@@ -241,7 +242,7 @@ Template:
 The Camunda 7 adapter stays Camunda-7-only, but every line of it must stay **trivially
 copyable** to the forks Operaton (`org.operaton.bpm.*`) and CIB seven
 (`org.cibseven.bpm.*`) — both renamed all packages; the copy will be generated with
-OpenRewrite later (roadmap 26g). Rules for ALL C7 adapter code:
+OpenRewrite later. Rules for ALL C7 adapter code:
 
 - Write against `org.camunda.bpm` only; never mix in fork artifacts.
 - Prefer **namespace-generic model-API reads** (`getAttributeValueNs(CAMUNDA_NS, ...)`
@@ -288,7 +289,7 @@ and new SaaS cluster side by side, or two engine versions). Consequences:
 
 ## Release lines: versioning an adapter against its BPMS
 
-Decided by story 53 for Camunda 8, and the rule for every adapter facing a BPMS which ships
+Decided for Camunda 8, and the rule for every adapter facing a BPMS which ships
 minors on a schedule.
 
 **When a line is needed at all.** Only where the BPMS client the adapter compiles against
@@ -367,7 +368,7 @@ not a technical limit, and the README says so next to the table.
 ## Documentation conventions
 
 - **The adapter's WIKI is user-facing, its `README.md` is contributor-facing**
-  (established by story 29, sharpened by story 55) — the opposite of Version 1.
+  — the opposite of Version 1.
 - An adapter wiki carries exactly two kinds of content: **configuration**
   (dependencies, minimal configuration, the adapter's keys, and what the BPMN model
   has to look like for that BPMS, including what of the workflow aggregate reaches

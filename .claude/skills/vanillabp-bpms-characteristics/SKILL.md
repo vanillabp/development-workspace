@@ -55,11 +55,11 @@ contact the cluster" — that is wrong. The real rule:
   concurrency conflict survivable. Where the BPMS will answer the same way every time
   (Camunda 7 rejecting an invalid command, an API which cannot do what was asked), the
   adapter answers `false` to `MigratableProcessService.isPhaseTwoFailureRepeatable`
-  (since story 63, default `true`). The core then wraps the failure in a
+  (default `true`). The core then wraps the failure in a
   `PhaseTwoPermanentFailure` and every store blocks that entry after ONE attempt.
   Keep the list of permanent cases short: repeating is the safe default.
 
-  What each adapter answers today (story 73):
+  What each adapter answers today:
 
   | Adapter | Permanent | Everything else |
   |---|---|---|
@@ -86,7 +86,7 @@ rolls back. Being embedded, its phase one asks MORE than a remote one can: the t
 existence, a waiting message subscription, a deployed message start event - exactly and
 for free, from the caller's own transaction.
 
-**Being embedded is no reason to share less** (story 66). Every BPMS evaluates the
+**Being embedded is no reason to share less.** Every BPMS evaluates the
 expressions of its models against ITS OWN variables, an embedded engine included - so
 Camunda 7 pushes the shared values like every other adapter, at every point the adapter
 talks to the engine, the completion of a `@WorkflowTask` method included (a gateway right
@@ -99,7 +99,7 @@ values need a serialization format the application configures, and any
 `ProcessEnginePlugin` bean of the application has to reach the engine the adapter builds -
 otherwise no dataformat can be installed.
 
-**An embedded engine also limits where the aggregate may live** (story 70): Camunda 7
+**An embedded engine also limits where the aggregate may live:** Camunda 7
 needs a relational database, and its engine transaction can never cover a workflow
 aggregate stored anywhere else - MongoDB, an event store, a ledger. Such an application
 is legal, but the engine and the aggregate commit separately, and no configuration
@@ -133,7 +133,7 @@ base** for now.
   same DB transaction** as the business code. Calls are synchronous.
 - Version: **7.24 is the final feature release** (Oct 2025, LTS; community edition
   EOL — no further community releases). Pin 7.24.x.
-- `needsTwoPhaseCommitForStartingWorkflows()` = **true** (since story 63, for every
+- `needsTwoPhaseCommitForStartingWorkflows()` = **true** (for every
   adapter id): every progressing operation is scheduled through the phase-two outbox and
   runs after the commit, so it can be repeated when it loses a conflict. An outbox is
   therefore mandatory for Camunda 7. What phase one still does is ASK - a task which is
@@ -158,16 +158,21 @@ base** for now.
   (Version-1 behavior) to avoid BPMN process ID clashes between modules.
 - The 1:1 aggregate relation maps naturally to the Camunda 7 **business key**.
 - **Platform wiring uses the plain engine, never Camunda's starter/extension** (both
-  are version-locked to EOL platform releases). The full analysis incl. a PROVEN
-  Quarkus recipe lives in `prompts/analysis-c7-plain-engine-RESULT.md`. Key facts:
-  Spring = `camunda-engine-spring-6` wiring sharing the app's DataSource +
-  `PlatformTransactionManager`, `SpringJobExecutor` deferred to
-  `startWorkflowProcessing`; Quarkus = engine-shipped
-  `JakartaTransactionProcessEngineConfiguration` + Agroal + Narayana, **mandatory**
-  schema-ops `JakartaTransactionInterceptor` (Agroal has no deferred enlistment) and
-  engine classloader = Quarkus runtime TCCL (JobExecutor threads otherwise fail on
-  delegate classes). **JVM-mode only — no native image** (decided; engine stack is
-  reflection-heavy).
+  are version-locked to EOL platform releases). Both recipes are implemented and
+  commented in the adapter itself — `Camunda7EngineHolder` for Spring Boot,
+  `Camunda7QuarkusEngineHolder` for Quarkus; read those before changing the wiring.
+  What they do:
+  - Spring: `camunda-engine-spring-6` wiring sharing the application's DataSource and
+    `PlatformTransactionManager`, with `SpringJobExecutor` deferred to
+    `startWorkflowProcessing`.
+  - Quarkus: the engine-shipped `JakartaTransactionProcessEngineConfiguration` on
+    Agroal plus Narayana, `transactionsExternallyManaged(true)`, and two settings
+    which are not optional — the schema-ops `JakartaTransactionInterceptor`, because
+    Agroal has no deferred enlistment, and the engine classloader set to the Quarkus
+    runtime TCCL, because JobExecutor threads otherwise fail to load delegate classes.
+  - **JVM mode only, no native image.** The engine stack (MyBatis, JUEL, scripting,
+    reflective delegate instantiation, XML parsers) is reflection-heavy, Camunda never
+    supported native, and neither fork claims to.
 - **C7 forks (Camunda 7 is EOL):** Operaton (`org.operaton.bpm`, community) and CIB
   seven (`org.cibseven.bpm`, commercial LTS) — both **renamed all Java packages** (no
   drop-in, no bridge jar), but the APIs port by mechanical package rename and both
@@ -199,11 +204,11 @@ base** for now.
   Answering `UNKNOWN_TO_BPMS` for a workflow which exists is NOT a bug to hide, it is
   what the read model knows — report a `workflowVisibilityDelay()` instead (Camunda 8:
   `workflow-visibility-timeout`, 10s), and the core keeps asking while it has a reason
-  to believe this BPMS holds the workflow (story 54).
+  to believe this BPMS holds the workflow.
 - **The aggregate-ID variable is named after the aggregate's ID attribute**, so every
   lookup needs that name from the persistence of the call at hand. Camunda 8 stores
   variables as JSON, so the filter value carries quotes (`"\"4711\""`). Both were
-  defects which made every probe find nothing (stories 52 and 54).
+  real defects once, and each made every probe find nothing.
 - **At-least-once job workers:** service tasks are pulled by polling workers; a job
   may be delivered again after a timeout or crash. `@WorkflowTask` handlers are
   therefore called at least once → task completion must be **idempotent** (keyed by
@@ -266,14 +271,14 @@ base** for now.
 |---|---|---|---|---|
 | Location | in-JVM | remote | depends (treat remote) | remote |
 | Joins local TX | inbound yes (task delivery), outbound no | no | `SYNC` mode may | no |
-| Aggregate sync default | `FULL` (story 66; it used to be `NONE` plus a live read) | `FULL` | `FULL` | `FULL` |
-| Two-phase start | yes (story 63) | yes | yes | yes |
+| Aggregate sync default | `FULL` (it used to be `NONE` plus a live read) | `FULL` | `FULL` | `FULL` |
+| Two-phase start | yes | yes | yes | yes |
 | Eventual consistency | no | yes | possible | expected |
 | Task delivery | synchronous / job executor | polling workers, at-least-once | Task Subscription API | REST (tbd) |
 | Idempotent handlers needed | no | yes | yes | yes |
 | Sees a version conflict of the aggregate | no while delivering (engine owns the TX) | yes | yes | yes |
 | Failed task ends in | retry by job executor, then incident | retries counted down, then incident | the engine's business | tbd |
-| Identity of a delivery (story 51) | none needed (delivery in engine TX) | job key | task id | tbd |
+| Identity of a delivery | none needed (delivery in engine TX) | job key | task id | tbd |
 | Module isolation | tenant ID | tbd (variable/tenant) | not expressible (gap) | tbd |
 | Client artifact | `org.camunda.bpm:camunda-engine` 7.24.x | `io.camunda:camunda-client-java` 8.8.x | `dev.bpm-crafters.process-engine-api:process-engine-api` | REST (openapi) |
 
@@ -295,7 +300,7 @@ base** for now.
    document the gap (PEA: `GAPS.md`).
 
 
-## Starting a workflow the BPMS decides on (story 41)
+## Starting a workflow the BPMS decides on
 
 A timer, signal or conditional start event starts a process without the application.
 What each BPMS offers to notice it:
@@ -322,7 +327,7 @@ stable; where notification and aggregate share one transaction, the meaningful v
 (the trigger time) can be used.
 
 
-## Signals (story 42)
+## Signals
 
 - **Camunda 7:** `RuntimeService.createSignalEvent(name)` with tenant handling, inside
   the caller's transaction. It CAN target a single execution (`executionId`), which
@@ -338,7 +343,7 @@ application's transaction. Everywhere else the outbox does it, and the at-least-
 residual has no cure because a signal carries no key.
 
 
-## Pushing a changed aggregate (story 44)
+## Pushing a changed aggregate
 
 - **Camunda 7:** `RuntimeService.setVariables(processInstanceId, ...)` /
   `setVariablesLocal(<scope execution>, ...)`, inside the caller's transaction. The
@@ -363,7 +368,7 @@ residual has no cure because a signal carries no key.
   instance (only an `elementInstanceScopeKey` FILTER), so the scope around a task is
   found by walking down from the process instance. So the feature requires secondary storage, and the adapter says so. NOTE
   variable filters carry JSON values - a String has to be searched WITH quotes, which
-  the client does not add (story 52: getting this wrong made EVERY probe answer
+  the client does not add (getting this wrong made EVERY probe answer
   UNKNOWN_TO_BPMS on clusters with secondary storage, and no test noticed because the
   test clusters had none). One encoder `Camunda8VariableFilters` serves every search.
   When writing Camunda 8 tests, ask which cluster the test needs: without secondary
@@ -382,7 +387,7 @@ name IS a task definition, asking the core via `workflowAggregateHasProperty` (c
 no aggregate loaded).
 
 
-## The end of a workflow (story 43)
+## The end of a workflow
 
 - **Camunda 7:** an END execution listener at the PROCESS scope, inside the engine's
   transaction. `PvmExecutionImpl#getDeleteReason()` is what distinguishes a cancelled
@@ -398,7 +403,7 @@ no aggregate loaded).
 The rule this confirms: what a BPMS cannot tell apart, an adapter reports as the
 weaker fact rather than inventing the distinction.
 
-## The version of a deployed process (story 48)
+## The version of a deployed process
 
 What `@WorkflowTask(version = ...)` and its siblings are matched against, per BPMS:
 
@@ -423,9 +428,10 @@ missing version matches every method, which keeps applications not using the att
 untouched.
 
 
-## The versions a BPMS still holds (story 57)
+## The versions a BPMS still holds
 
-Story 48 asks what version a delivery belongs to. Story 57 asks the other direction: which
+The `version` attribute asks what version a delivery belongs to. The startup check asks
+the other direction: which
 versions does the BPMS still HOLD, what do their models look like, and how many workflows
 run on them - because the application only ever brings its newest model, and the older
 versions are what its methods have to keep serving.
@@ -449,7 +455,7 @@ cannot. Reading the model is the adapter's job, deciding whether a method serves
 core's - and both adapters build the task specs of an old model with the same extraction
 they use in `wireBpmn`, so the two directions cannot drift apart.
 
-## A failed transaction, and what the BPMS makes of it (story 59)
+## A failed transaction, and what the BPMS makes of it
 
 A workflow with more than one token has two branches writing the same workflow aggregate.
 With a version attribute on the aggregate that collision is an exception in the commit
@@ -477,7 +483,7 @@ that throws:
 Two consequences for adapter work:
 
 - **A handler has to survive repetition, and the delivery record does not change that.** The
-  record of story 51 is written in the handler's transaction, so a run which failed on a
+  delivery record is written in the handler's transaction, so a run which failed on a
   conflict leaves none and the redelivery runs the handler again. Idempotency of side effects
   stays the application's job.
 - **Reading the model is the adapter's job here as well.** An adapter reports the elements

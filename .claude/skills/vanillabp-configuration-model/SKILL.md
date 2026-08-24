@@ -27,20 +27,16 @@ Pattern (Spring): iterate `properties.getAdapters()` for entries whose type equa
 adapter's type, and register one **element** bean per id — NEVER a bean of type
 `List<AdapterDeploymentService<...>>` (List beans break collection injection as soon as
 a second adapter type is present — review finding B1; the platform collects element
-beans via `ObjectProvider` streams). The per-id bean mechanics land in story 26d;
-until then adapters build one element bean for the first configured id of their type.
+beans via `ObjectProvider` streams), and an adapter registers ONE element bean per
+configured id of its type, named after that id.
 Pattern (Quarkus): element beans likewise; the platform's collection point
-additionally flattens beans of type `List<MigratableProcessService>` (26d's
-runtime-config multiplicity shape).
-
-**Known bug (to be reworked):** the C7/C8/PEA skeletons derive the adapter id via
-`findFirst()` and build a single process service — wrong for multi-adapter setups. See
-the roadmap rework story.
+additionally flattens beans of type `List<MigratableProcessService>`, the shape the
+runtime config produces for several ids.
 
 ## Where the primary per-adapter config lives: `vanillabp.adapters.<id>.*`
 
 The primary configuration of an adapter instance is **always** at
-`vanillabp.adapters.<id>.*`, modeled ONCE in the core (story 19):
+`vanillabp.adapters.<id>.*`, modeled ONCE in the core:
 `MigrationAdapterProperties.adapters` is a `Map<String, AdapterConfigProperties>`
 (platform keys `type`, `deployment-failure`; each adapter adds its own keys to the
 same section). The *keys* differ per BPMS, but the *location is always the same* — do
@@ -76,10 +72,10 @@ unknown id fails the startup with a guiding message
 
 Some sections configure the PLATFORM and carry no adapter id:
 `vanillabp.outbox.*` (the phase-two outbox), `vanillabp.workflow-adapter-cache.*`
-(the election cache's bounds), `vanillabp.transactions.*` (story 70: whether writes to
+(the election cache's bounds), `vanillabp.transactions.*` (whether writes to
 a workflow-aggregate store which VanillaBP's transaction demonstrably does not cover are
 `accepted` or `rejected`, the latter being the default which ends the startup) and
-`vanillabp.delivery.*` (story 76: `release-on-workflow-end`, whether a workflow which
+`vanillabp.delivery.*` (`release-on-workflow-end`, whether a workflow which
 ended deletes the records of its processed task deliveries instead of leaving them to
 `vanillabp.outbox.retention`; default `false`, because switching it on makes every
 deployed process of the module carry the listener reporting the end). The last two are
@@ -98,7 +94,7 @@ from the `@ConfigMapping` interface by the generated `toCore()` on Quarkus (wher
 are necessarily written twice). Put a new platform-wide property here, never into
 `vanillabp.adapters.<id>.*`.
 
-**Quarkus trap (story 58): never `@Inject` a `@ConfigMapping` interface.** A bean
+**Quarkus trap: never `@Inject` a `@ConfigMapping` interface.** A bean
 injecting it turns the mapping into a STATIC-INIT mapping, and SmallRye then validates
 the whole `vanillabp.*` tree at static init - before the adapter extensions registered
 their RUN_TIME overlays. Every adapter-specific key fails the startup with
@@ -110,10 +106,10 @@ key, not at the injection which caused it. Read the mapping instead:
 
 Some adapter properties are not global to the adapter but vary by scope. Examples:
 **Camunda 8 job timeout is task-specific**, and so is the CORE's
-`deduplicate-deliveries` (story 51 - whether a repeated task delivery is answered from
+`deduplicate-deliveries` (whether a repeated task delivery is answered from
 the record instead of running the handler again; default `true`, and a single expensive
 task may be treated differently from the rest) and `outfaded-versions` /
-`outfaded-versions-in-use` (story 57 - which versions of a process this application does
+`outfaded-versions-in-use` (which versions of a process this application does
 not serve any more, written in the grammar of the `version` attribute, and what happens
 when workflows still run on one; per workflow, because a version is a property of ONE
 process, and per adapter, because every BPMS counts its own versions). Such a property may be set at any of four
