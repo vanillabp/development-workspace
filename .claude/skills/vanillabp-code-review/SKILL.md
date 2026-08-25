@@ -60,40 +60,44 @@ git diff origin/main...HEAD | grep -niE '^\+.*\b(story|prompt|issue|ticket)s? ?#
 Code must not point at a story number, a prompt file, an issue or pull-request number, a
 chat transcript or a person. All of those record a conversation at a point in time, and a
 later change can overturn what they say without anything noticing. The one sanctioned
-citation target is a numbered entry in the decision log of the SAME repository's
-`README.md`, written in the plain greppable form
-`see decision 7 in the repository's README.md`.
+citation target is a numbered entry in the SAME repository's `DECISIONS.md`, written in the
+plain greppable form `see decision 7 in the repository's DECISIONS.md`.
 
 Commit messages and pull-request descriptions may cite whatever they like. They are
 records of a point in time themselves.
 
 ### 4. Every citation resolves
 
-Read each `see decision <n>` in the diff against the `## Decision log` section of the
-README belonging to that file's repository:
+Read each `see decision <n>` in the diff against the `DECISIONS.md` of the repository
+that file belongs to:
 
 ```bash
 git diff origin/main...HEAD | grep -oiE 'decision [0-9]+' | sort -u
-grep -n '^### [0-9]*\.' README.md
+grep -n '^### [0-9]*\.' DECISIONS.md
 ```
 
 A citation into another repository's log is the same fragile pointer as a story number and
 does not count as resolving. A decision spanning several repositories gets an entry in
 each, stating it from that repository's side.
 
-### 5. An overturned decision is superseded, not edited
+### 5. An overturned decision is asked about first, then superseded rather than edited
 
-Read the diff of `README.md` in the decision-log section, next to the behaviour change in
-the same commit.
+Read the diff of `DECISIONS.md`, next to the behaviour change in the same commit.
 
-Where the change makes a logged decision untrue, the same commit updates the log: the old
-entry stays, marked as superseded and naming the entry which replaced it, and the new
-decision takes the next free number. Numbers are never reused and never renumbered.
-Editing an entry until the old text is gone breaks every citation which pointed at it,
-the ones in older releases included.
+A logged decision is changed or replaced ONLY after asking the maintainer. An agent which
+notices that its change contradicts an entry stops there and puts the question, before the
+change is written. Rewriting an entry to fit the code you already wrote is the finding this
+check exists for, and it is a finding even when the code is an improvement.
 
-A change which makes a decision untrue while the log stays untouched is a finding even
-when the code itself is right.
+Once the answer is yes, the same commit updates the log: the old entry stays, marked as
+superseded and naming the entry which replaced it, and the new decision takes the next free
+number. Numbers are never reused and never renumbered, because a citation which shipped in
+an older release still points at them. Editing an entry until its old text is gone breaks
+every one of those.
+
+A change which makes a decision untrue while the log stays untouched is a finding even when
+the code itself is right. So is a new entry which nothing cites, or one whose reasoning fits
+into a comment at the single place that needs it.
 
 ### 6. New comments say why, in words that stand alone
 

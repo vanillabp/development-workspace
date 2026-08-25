@@ -1,6 +1,6 @@
 ---
 name: vanillabp-testing
-description: Testing strategy and concrete test patterns for VanillaBP — feature/acceptance tests (E2E) first for everything user-facing, integration tests for the rest, unit tests for edge cases; >90% coverage measured SEPARATELY per platform; adapters are tested primarily at the migration-adapter SPI boundary; always use test-utils (output suppression, coverage forwarding, free ports). Use whenever writing or reviewing tests in adapter-platform-integration or any adapter repository.
+description: Testing strategy and concrete test patterns for VanillaBP — feature/acceptance tests (E2E) first for everything user-facing, integration tests for the rest, unit tests for edge cases; >90% coverage measured SEPARATELY per platform, gate at 85; adapters are tested primarily at the migration-adapter SPI boundary; always use test-utils (output suppression, coverage forwarding, free ports). Use whenever writing or reviewing tests in adapter-platform-integration or any adapter repository.
 ---
 
 # VanillaBP testing strategy & patterns
@@ -37,7 +37,11 @@ description: Testing strategy and concrete test patterns for VanillaBP — featu
 
 ## Coverage: >90% of INSTRUCTIONS, strictly per platform
 
-Target is **>90% instruction coverage, per platform, viewed separately**. Instructions,
+Target is **>90% instruction coverage, per platform, viewed separately**. The build breaks
+at 85, the number `coverage.threshold.spring-boot` and `coverage.threshold.quarkus` hold in
+every VanillaBP repository. That is the floor, not the target, and a report between 85 and
+90 passes while still naming a gap somebody owes a test for. Neither number is edited to
+make a build pass. Instructions,
 not lines: it is the number JaCoCo's index page and therefore the README badge show, and
 it does not move when code is only reformatted, while line coverage depends on the
 compiler's line table.
@@ -84,7 +88,7 @@ compiler's line table.
 ## Always use `test-utils` (`io.vanillabp:test-utils`)
 
 - **`SuppressOutputExtension`** on EVERY test class
-  (`@ExtendWith(SuppressOutputExtension.class)`), and as the **FIRST** class-level
+  (`@ExtendWith(SuppressOutputExtension.class)`) except the one documented below, and as the **FIRST** class-level
   extension, above `@Testcontainers`: JUnit registers declarative extensions in the order
   they are written, so a Testcontainers extension listed first starts its container, and
   logs it, before anything captures output (2208 debug lines of the Docker
@@ -92,7 +96,16 @@ compiler's line table.
   repository via `TestClassConventions`. What starts even earlier than the first callback
   — Docker detection from an `ExecutionCondition`, an image pull, the Ryuk reaper — no
   extension reaches; that needs a `logback-test.xml` holding `org.testcontainers`, `tc`
-  and `com.github.dockerjava` at `WARN`. In the Quarkus test modules the level stays at
+  and `com.github.dockerjava` at `WARN`.
+- **The one exemption: `@PrintsWhenPassing`.** A class whose printed line IS its result
+  carries that annotation with the reason instead of the suppression, and
+  `TestClassConventions` leaves it alone. VanillaBP has exactly one such class, the
+  `CoverageGateTest` of each repository: it measures both platforms against the gate and
+  against the rule, and that measurement belongs in the log of a green build, where
+  somebody who has just written tests can read whether the gap got smaller. Anything else,
+  a mock that warns or a container that boots, is noise and gets suppressed. A second
+  exemption needs a reason of the same shape, which is why the annotation demands one in
+  writing. In the Quarkus test modules the level stays at
   `INFO` — a record a level drops reaches no handler and therefore no capture, so a red
   build would replay nothing. What those modules cannot capture is the boot of an
   application: Quarkus logs it into a log context of its own, in the Quarkus extension's
@@ -185,7 +198,8 @@ compiler's line table.
    are involved (copy the outbox IT shapes).
 4. Startup-message tests assert message CONTENT (property keys!) via `CapturedOutput`.
 5. Check the per-platform coverage reports afterwards; fill gaps with integration
-   tests first, unit tests for the remaining edges. Target >90% per platform.
-6. Every class: `SuppressOutputExtension`; forked JVMs: coverage forwarding.
+   tests first, unit tests for the remaining edges. Target >90% per platform, build breaks at 85.
+6. Every class: `SuppressOutputExtension` (only `CoverageGateTest` is exempt, via
+   `@PrintsWhenPassing`); forked JVMs: coverage forwarding.
 7. A new test scenario: its own workflow module id, and an owner for every aggregate its
    context registers (see the two rules above).

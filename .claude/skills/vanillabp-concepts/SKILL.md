@@ -272,5 +272,9 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   configuration, platform guides). Module `README.md` files = contributor/development
   documentation.
 
-Each repository's `README.md` carries the contributor documentation for its modules,
-and the decision log at its end records the decisions the code cites.
+Each repository's `README.md` carries the contributor documentation for its modules, and its
+`DECISIONS.md` records the numbered decisions the code cites - the one citation target the code is
+allowed, in the form `see decision 7 in the repository's DECISIONS.md`. Read the log of a
+repository before changing behaviour in it, and where a change would make an entry untrue, ask
+before writing the change: an entry is superseded rather than edited, and only with the
+maintainer's agreement. Each repository's `AGENTS.md` states the same rule.

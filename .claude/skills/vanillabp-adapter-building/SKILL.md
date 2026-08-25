@@ -206,7 +206,7 @@ Template:
     knows fails the startup (typo detection; Quarkus is stricter than Spring,
     accepted). Therefore EVERY key an adapter reads/writes must be modeled in its
     overlay mapping.
-  - **Adapter-id-set rule (decision 9):** the authoritative id set is ALWAYS the
+  - **Adapter-id-set rule:** the authoritative id set is ALWAYS the
     platform's core properties (`adapterTypes()`); overlay maps are per-known-id
     lookups only, NEVER iterated to discover ids (Spring env-var overrides can
     materialize phantom map entries; overlay-only ids are invisible to

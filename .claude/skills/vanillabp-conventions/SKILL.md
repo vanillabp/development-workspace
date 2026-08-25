@@ -82,6 +82,11 @@ SQL) — better readability.
   just module listings. When implementing a feature, extend the affected module's
   README with the concept behind it.
 - **Exception:** `spi-for-java/README.md` is user-facing.
+- **`DECISIONS.md`** (every repository) = the numbered decisions the code cites, and the only
+  citation target code is allowed: `see decision 7 in the repository's DECISIONS.md`, entries of
+  that repository only. Read it before changing behaviour. Where a change would make an entry
+  untrue, **ask before writing the change**; a decision is superseded rather than edited, keeps
+  its number, and the successor gets the next free one. Each repository's `AGENTS.md` states it.
 - Versions: all artifacts are aligned to 2.0.0-SNAPSHOT (`spi-for-java`:
   1.1.1-SNAPSHOT).
 
