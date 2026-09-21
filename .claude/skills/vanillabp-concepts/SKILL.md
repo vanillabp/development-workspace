@@ -5,6 +5,8 @@ description: Glossary and architecture of VanillaBP Version 2 — use when worki
 
 # VanillaBP Concepts (Version 2)
 
+*Last checked against decision 70 of `adapter-platform-integration` and decision 8 of `spi-for-java`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 VanillaBP applies hexagonal architecture to business processing: business code is
 written only against the SPI (`spi-for-java`), never against BPMS APIs. All workflow
 state lives in a *workflow aggregate* — process variables are not used directly.
@@ -39,19 +41,43 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   of at least one workflow module; without a marker file the whole app is the *global*
   module.
 - **Workflow module configuration:** per-module config files named after the module ID
-  (`loan-approval.yaml`, `loan-approval-<profile>.properties`, ...). They override
-  `application.*` properties. Spring Boot: merged via an `EnvironmentPostProcessor`;
-  Quarkus: generated config sources with ordinals 251 (properties) / 256 (YAML).
+  (`loan-approval.yaml`, `loan-approval-<profile>.properties`, ...). They are DEFAULTS:
+  everything the application configures outranks them, `application.yaml` and its
+  profile variants included (`UPGRADE.md`, a regression against version 1).
+  Spring Boot: appended at the END of the environment by an `EnvironmentPostProcessor`;
+  Quarkus: generated config sources with ordinals 230 (properties) / 235 (YAML), below
+  the application's own files. Inside a module the profile variant still beats the plain
+  file.
 - **Workflow aggregate:** a DDD aggregate with a 1:1 relation to one workflow instance,
   holding all data the workflow needs. BPMN expressions (JUEL/FEEL) reference aggregate
   attributes. Best practice: intention-revealing boolean getters instead of raw
   attributes, to decouple BPMN from the data model. JPA is not mandatory.
 - **`@SyncWithBPMS` / `@NoSyncWithBPMS`:** fine-grained control over which parts of the
-  aggregate are synchronized with the BPMS (default: everything). Documented in the
-  wiki; **not implemented yet** (planned as its own story).
-- **Adapter:** a BPMS-specific implementation of the migration-adapter SPI. Exactly one
-  adapter per BPMS in use. Adapters live in separate repositories (none in this
-  workspace yet — they will be rebuilt from scratch).
+  aggregate are synchronized with the BPMS, on the class, on an attribute or on a nested
+  type, most specific winning, including
+  the inheritance along that chain and the startup validation of a class which annotates
+  attributes both ways. The default is `FULL` on all three adapters, for portability and
+  because a version-1 application must not have to touch code; the recommendation is the
+  opposite, as little as possible and as much as needed. An aggregate which really
+  shares everything does not start, though. `FullSyncCheck` asks the sync model, once
+  per registered workflow, what would travel if nothing at all were held back, and
+  where that is the whole aggregate the startup ends with a message naming the two ways
+  on: annotate what the models really need, or allow the full sync for that one
+  workflow
+  (`vanillabp.workflow-modules.<module>.workflows.<bpmn-process-id>.allow-full-sync-with-bpms`).
+  So a version-1 application still needs no code change, but it does have to say once
+  what it shares, and that is the point of the check (decision 66). The permission is
+  read at the workflow and nowhere else, a deliberate exception from the resolution
+  over four levels: written higher up it would cover the workflow somebody adds next
+  week, and the same line at the application, at a workflow module or in an adapter
+  section is answered with a message saying where it belongs. The aggregate's ID
+  attribute is left out of the check, because that value reaches the BPMS whatever the
+  sync model says, and a secondary BPMN process is covered by the permission of the
+  primary one.
+- **Adapter:** a BPMS-specific implementation of the migration-adapter SPI. One adapter
+  instance per configured adapter id, and several ids of one BPMS type are allowed.
+  Adapters live in separate repositories, three of them in this workspace: Camunda 7,
+  Camunda 8 and the bpm-crafters Process-Engine-API.
 - **Migration adapter:** the platform-neutral meta-adapter ("an adapter aware of other
   adapters"). Selects the BPMS per workflow via prioritized adapter lists and enables
   migrations (on-prem→SaaS, version upgrades, BPMS switch). Must itself handle eventual
@@ -60,17 +86,28 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
 - **BPMS election:** configuration `vanillabp.prioritized-adapters`, overridable per
   workflow module and per workflow; most specific non-empty value wins. New workflows
   always start in the first adapter; existing instances are located by asking adapters
-  in priority order (`MigratableProcessService.isTaskActive` → true/false/null).
-- **Election cache** (`WorkflowAdapterCache`, business SPI): remembers which adapter
+  in priority order, through the four awareness probes of `MigratableProcessService`
+  (`awarenessOfTask`, `awarenessOfUserTask`, `awarenessOfWorkflow`,
+  `awarenessOfWorkflowForRedispatch`), each answering a `WorkflowAwareness` for the
+  `WorkflowScope` it is handed. `isTaskActive` with its three-valued answer is gone.
+  The election is implemented, in `WorkflowLocator`.
+- **Election cache** (`WorkflowAdapterCache`, integration SPI): remembers which adapter
   holds a workflow, so the next operation skips the probing walk. Entries are HINTS —
   losing one costs an extra walk (and, on an eventually consistent BPMS, the
   visibility window), never correctness. The in-memory default is bounded and
   expiring, sized by `vanillabp.workflow-adapter-cache.max-entries` / `.time-to-live`
-  (10.000 / 1 h); a cluster shares elections by providing its own bean. What the cache
-  does is counted in `WorkflowAdapterCacheStatistics` (published as Micrometer meters
-  `vanillabp.workflow.adapter.cache.*` where Micrometer is present, optional on both
-  platforms), and hints lost to eviction pressure produce a guiding WARN at most once
-  per hour.
+  (10.000 / 1 h); a cluster shares elections by providing its own bean. Two sets of
+  meters, because they answer different questions. What the ELECTION asked of the
+  cache is counted in `WorkflowAdapterCacheStatistics` and published as
+  `vanillabp.workflow.adapter.cache.hits`, `.misses` and `.ended.marks`. Those are the
+  same numbers for every implementation, so they survive an application plugging in its
+  own cache. What only the in-memory default knows about itself carries a prefix of its
+  own, `vanillabp.inmemory.election.cache.size`, `.size.ended`, `.evictions`,
+  `.evictions.unused` and `.lost.hints`
+  (`InMemoryWorkflowAdapterCacheStatistics`): a size and an eviction are properties of
+  one implementation, and the cache VanillaBP ships for Hazelcast has no size bound at
+  all. Meters are Micrometer where Micrometer is present, optional on both platforms.
+  Hints lost to eviction pressure produce a guiding WARN at most once per hour.
 - **Two-phase start / transaction outbox:** workflow start is split into
   `startWorkflowPhaseOne` (inside the local DB transaction) and
   `startWorkflowPhaseTwo` (after commit, scheduled via the `PhaseTwoOutbox` SPI
@@ -94,7 +131,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   `startWorkflowProcessing`).
 - **`TransactionRunner` / `TransactionRunnerAware<A>`:** the transaction
   VanillaBP wraps around everything it does with one aggregate (delivery lookup,
-  `loadById`, handler, `save`, delivery record, outbox entry). Lives in the business SPI,
+  `loadById`, handler, `save`, delivery record, outbox entry). Lives in the integration SPI,
   so an application whose aggregates are stored in a system the platform does not manage
   (event store, ledger, message producer, an API) contributes its own unit of work -
   either as a plain bean serving every aggregate, or attributed per aggregate through the
@@ -109,7 +146,7 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   behaviour deliberately.
 - **`AggregatePersistenceAware<A>`:** persistence abstraction
   (`getAggregateClass`, `save`, `getAggregateId`). Lives exactly once in the
-  business SPI `io.vanillabp:vanillabp-integration-spi` (package
+  integration SPI `io.vanillabp:vanillabp-integration-spi` (package
   `io.vanillabp.integration.spi`), provided transitively by both support modules.
   The implementation with the most specific generic aggregate type wins
   (inheritance-distance metric in `AggregatePersistenceResolver`). An application
@@ -120,14 +157,21 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
 - **`PhaseTwoOutbox` / `PhaseTwoCall` / `PhaseTwoRouter`:** adapter-SPI contract
   for crash-safe phase-two dispatch of two-phase BPMS calls. Stores implement
   exactly one method `boolean schedule(PhaseTwoCall)` (enlist in local
-  transaction); typed default methods (`scheduleStartWorkflow(module, process,
-  aggregateId, adapterId)`) build the immutable `PhaseTwoCall` record via
+  transaction); the core builds the immutable `PhaseTwoCall` record via
   `PhaseTwoCall.of(operation, ...)` (a store rebuilding a call from a persisted
   entry uses `forDispatch(name, ...)`; the aggregate ID travels as String only).
-  Operations are entries of the `PhaseTwoOperationRegistry`: persisted NAME +
-  idempotency-key derivation (`PhaseTwoOperation`, core operations as constants) +
-  dispatch (`PhaseTwoOperationDispatch`, registered at startup). The core registers
-  its seven operations in the router; an EXTENSION registers namespaced ones
+- **`PhaseOperation`:** one operation, defined once — persisted NAME +
+  idempotency-key derivation + `Election` (which BPMS serves it) + whether every
+  adapter has to serve it + whether the activation travels + the words it names
+  itself with. What it DOES is the adapter's `PhaseOperationHandler`
+  (`phaseOne`/`phaseTwo`), contributed per operation in
+  `MigratableProcessService#phaseOperations()` — so adding an operation is one
+  constant in the core and one entry per adapter (decision 29 of the platform;
+  `AddingAnOperationTest`). The core runs everything through
+  `MigrationProcessService#execute` / `#executePhaseTwo`. The registry
+  (`PhaseOperationRegistry` + `PhaseOperationDispatch`) resolves a persisted name at
+  dispatch time. The core registers its nine operations in the router; an EXTENSION
+  registers namespaced ones
   (`my-extension:NOTIFY`, enforced) and gets their calls in its own handler, without
   adapter election. An unregistered operation at dispatch = guiding error, entry
   stays in the store. Contract: unique idempotency key enforced by the store (duplicate
@@ -179,8 +223,9 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   (`WorkflowEndedInvoker`, implemented by `WorkflowTaskRegistry`). Adapters ask
   `workflowEndedHandlerExists` while wiring and attach a listener ONLY where a method
   exists. C7: END execution listener at the process scope, in the engine TX,
-  COMPLETED vs. TERMINATED via delete reason; C8: `end` execution listener on the
-  process element plus worker, COMPLETED only; PEA: not possible, WARN (gap 17).
+  COMPLETED vs. CANCELED via delete reason; C8: `end` execution listener on the
+  process element plus worker, plus a `cancel` listener from release line 8.10 on;
+  PEA: not possible, WARN (gap 17).
   At-least-once; a deleted aggregate is skipped, not an error.
 - **Signals:** `ProcessService.sendSignal(name)` is a BROADCAST (no aggregate, no
   election). It fans out over the deployment union of the workflow module; embedded
@@ -233,12 +278,11 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   with every job, tags need the query API; PEA only reports the tag of the current task
   where the engine supplies it (gap 19).
 - **`WorkflowAwareness`:** enum (`ACTIVE`, `COMPLETED`,
-  `UNKNOWN_TO_BPMS`, `BPMS_UNAVAILABLE`) returned by
-  `MigratableProcessService.awarenessOfTask/awarenessOfWorkflow` (the workflow probe
-  takes the aggregate persistence: the aggregate-ID variable is named after the
-  aggregate's ID attribute) — the basis for
-  the (not yet implemented) fallback election. `BPMS_UNAVAILABLE` means retry
-  later, never fall back.
+  `UNKNOWN_TO_BPMS`, `BPMS_UNAVAILABLE`) returned by the four awareness probes of
+  `MigratableProcessService` (each takes a `WorkflowScope`; the workflow probes take the
+  aggregate persistence as well, because the aggregate-ID variable is named after the
+  aggregate's ID attribute) — the basis of the election `WorkflowLocator` implements.
+  `BPMS_UNAVAILABLE` means retry later, never fall back.
 - **Deployment-failure policy:** `vanillabp.adapters.<id>.deployment-failure` =
   `fail` (default) | `warn` (non-first-priority adapter may fail deployment
   without preventing boot). Retry/backoff configuration (`vanillabp.resilience.*`)
@@ -252,14 +296,19 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
 - `spi-for-java/` — user-facing API: `@WorkflowService`, `@WorkflowTask`, `@TaskId`,
   `@TaskEvent`, `@TaskParam`, multi-instance annotations, `ProcessService<A>`
   (start, correlate messages, complete/cancel tasks, viewer/history API).
-- `adapter-platform-integration/migration-adapter/business-spi/` — business SPI
-  (`io.vanillabp:vanillabp-integration-spi`): `AggregatePersistenceAware`.
-- `adapter-platform-integration/migration-adapter/spi/` — adapter SPI:
+- `adapter-platform-integration/migration-adapter/integration-spi/` — integration SPI
+  (`io.vanillabp:vanillabp-integration-spi`), implemented by business code:
+  `AggregatePersistenceAware`, `PhaseTwoOutbox`, `PhaseTwoCall`, `PhaseOperation`,
+  `Election`, `PhaseOperationRegistry`, `PhaseOperationDispatch`, `TransactionRunner`,
+  `TaskDeliveryLog`, `WorkflowAdapterCache`.
+- `adapter-platform-integration/migration-adapter/extension-spi/` — extension SPI
+  (`io.vanillabp:vanillabp-extension-spi`), no dependencies: `ExtensionWiringService`.
+- `adapter-platform-integration/migration-adapter/adapter-spi/` — adapter SPI
+  (`io.vanillabp:vanillabp-adapter-spi`):
   `AdapterDeploymentService<BPMN, PC> extends ExtensionWiringService`,
-  `MigratableProcessService` (awareness methods), `PhaseTwoOutbox`,
-  `PhaseTwoCall`, `PhaseTwoOperation`, `PhaseTwoOperationRegistry`,
-  `PhaseTwoOperationDispatch`, `ExtensionWiringService`,
-  `BpmnParseException`, `WorkflowAwareness`.
+  `MigratableProcessService` (awareness probes, `phaseOperations()`),
+  `PhaseOperationHandler`, `PhaseOneRequest`, `PhaseTwoRequest`,
+  `PhaseOperationNotSupported`, `BpmnParseException`, `WorkflowAwareness`.
 - `adapter-platform-integration/migration-adapter/runtime/` — core runtime:
   `DeploymentService`, `MigrationProcessService`, `PhaseTwoRouter`,
   `MigrationAdapterProperties`.

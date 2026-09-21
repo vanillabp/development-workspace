@@ -1,15 +1,18 @@
 ---
 name: vanillabp-code-review
-description: Review a VanillaBP diff against the rule that sources explain themselves: names which read like small sentences, comments which say why in their own words, and no citation of anything a later change can invalidate. Use before submitting a pull request in spi-for-java, adapter-platform-integration or any adapter repository, and when reviewing somebody else's branch.
+description: Review a VanillaBP diff against the rule that sources explain themselves: names which read like small sentences, comments which say why in their own words, English a second-language reader gets on the first pass, and no citation of anything a later change can invalidate. Use before submitting a pull request in spi-for-java, adapter-platform-integration or any adapter repository, and when reviewing somebody else's branch.
 ---
 
 # Reviewing a VanillaBP change
 
-This skill reviews the writing of a change: names, comments, and what they point at.
-Module placement, platform parity, SPI compatibility, build commands and formatting are
-in `vanillabp-conventions`, and everything about tests is in `vanillabp-testing`. Read
-those for the rules themselves. This one asks one question only: does the change explain
-itself to the next person who lands in it?
+*Last checked against decision 70 of `adapter-platform-integration`, decision 8 of `spi-for-java`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
+This skill reviews the writing of a change: names, comments, the English they are written
+in, and what they point at. Module placement, platform parity, SPI compatibility, build
+commands and formatting are in `vanillabp-conventions`, and everything about tests is in
+`vanillabp-testing`. Read those for the rules themselves. This one asks whether the change
+explains itself to the next person who lands in it, and whether that person gets it on the
+first pass.
 
 ## What to review
 
@@ -99,7 +102,35 @@ A change which makes a decision untrue while the log stays untouched is a findin
 the code itself is right. So is a new entry which nothing cites, or one whose reasoning fits
 into a comment at the single place that needs it.
 
-### 6. New comments say why, in words that stand alone
+### 6. A number the branch hands out is still free
+
+Read the `DECISIONS.md` diff once more, this time only for the numbers.
+
+A number gets claimed while a branch is open, so the log on `origin/main` is only half the
+answer. The open pull requests are the other half:
+
+```bash
+bin/check-decision-numbers.sh                  # where the repository has the script
+```
+
+By hand it is:
+
+```bash
+git fetch origin
+git show origin/main:DECISIONS.md | grep -E '^#+ [0-9]+\. '
+gh pr list --state open
+gh pr diff <n> | grep -E '^\+#+ [0-9]+\. '       # gh pr diff takes no path argument
+```
+
+A taken number is a finding while the pull request does not exist yet. Once it is merged the
+number is fixed on GitHub, and a `see decision 21` in a Java file cannot be changed there. The
+fix is the next free number and every citation of it corrected.
+
+Reviewing such a renumbering means reading each changed citation. A `see decision <n>` in the
+branch can belong to somebody else's decision, and then the old number was the right one. A
+search and replace over the whole branch is what this check is here for.
+
+### 7. New comments say why, in words that stand alone
 
 Read every comment the diff adds.
 
@@ -111,7 +142,44 @@ both move.
 Where a name could have carried the explanation, the name is the better fix. Look for that
 before accepting a comment.
 
-### 7. What the change costs the next reader
+### 8. English a second-language reader gets on the first pass
+
+Read every English sentence the diff adds or rewrites: comments and Javadoc, `README.md`,
+`DECISIONS.md`, `UPGRADE.md`, `GAPS.md`, wiki pages, and the text of the pull request
+itself.
+
+Most people who read this code read English as a second language. A sentence they have to
+read twice costs more than the sentence saved. The repository states the rule in the
+section `How we write` of its `AGENTS.md`, and that section is what a finding points at.
+
+What counts as a finding:
+
+- a sentence with more than one subordinate clause, or one long enough that its subject and
+  its verb are far apart;
+- passive voice where somebody or something does the acting and could be named;
+- a rare word where an everyday one says the same: `leverage` for `use`, `regarding` for
+  `about`, `consequently` for `so`, `possesses` for `has`, `prior to` for `before`;
+- three or more nouns stacked into one phrase, such as `adapter configuration property
+  resolution order`;
+- an abbreviation used before it is written out once, or a technical term introduced
+  without saying what it means;
+- a paragraph which says the same thing twice in different words.
+
+Two greps find the common cases, and the rest is read:
+
+```bash
+git diff origin/main...HEAD | grep -E '^\+' | grep -oE '[^.!?]{160,}'
+git diff origin/main...HEAD | grep -niE '^\+.*\b(leverage|utilize|regarding|consequently|possesses|facilitate|prior to|aforementioned|thereby|whilst|hereby|in order to)\b'
+```
+
+What is not a finding: an identifier, a configuration key, an artifact coordinate, the
+headline of a decision log entry, or a quoted error message. None of those are rewritten
+for the sake of language, because code and other repositories point at them. Neither is
+text the diff leaves alone; this check reads what the branch writes, not what it inherits.
+
+The fix is the rewritten sentence, not a note that the sentence is long.
+
+### 9. What the change costs the next reader
 
 Read the changed methods as a whole.
 

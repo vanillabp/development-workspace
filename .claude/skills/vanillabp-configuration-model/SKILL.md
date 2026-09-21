@@ -5,6 +5,8 @@ description: Where VanillaBP configuration lives and how it is resolved — one 
 
 # VanillaBP configuration model (Version 2)
 
+*Last checked against decision 70 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 ## One instance per adapter id — never "the first"
 
 `vanillabp.prioritized-adapters` and `vanillabp.adapters` map **adapter ids** to
@@ -124,13 +126,14 @@ task            most specific   (per BPMN task)
 
 Concrete key shape (from the properties model — `WorkflowModuleProperties` and
 `WorkflowProperties` both extend `AdaptersConfigurationProperties` and carry an
-`adapters` map; a `tasks` level is added when task-scoped config is implemented):
+`adapters` map; the `tasks` level exists, `deduplicate-deliveries` and
+`max-task-age` resolve through it):
 
 ```
 vanillabp.adapters.<id>.<key>                                                # adapter level (base)
 vanillabp.workflow-modules.<mod>.adapters.<id>.<key>                         # per module
 vanillabp.workflow-modules.<mod>.workflows.<wf>.adapters.<id>.<key>          # per workflow
-vanillabp.workflow-modules.<mod>.workflows.<wf>.tasks.<task>.adapters.<id>.<key>  # per task (future)
+vanillabp.workflow-modules.<mod>.workflows.<wf>.tasks.<task>.adapters.<id>.<key>  # per task
 ```
 
 Resolution walks from most specific to least specific and takes the first value present.
@@ -140,6 +143,14 @@ mechanism rather than inventing a new one. Whether "most specific wins" applies
 per-property or per-block: per-block for grouped settings, per-property for scalars
 (the removed `resilience` block worked per-block) — confirm against
 `MigrationAdapterProperties` when implementing.
+
+Not every scoped property walks all four levels. `allow-full-sync-with-bpms` sits at the
+workflow itself (`vanillabp.workflow-modules.<mod>.workflows.<wf>.allow-full-sync-with-bpms`,
+no adapter id) and is read there and nowhere else, because a permission inherited from
+above would cover the workflow somebody adds next week. The key is bound at the
+application, at a workflow module and in an adapter section as well, but only so that a
+line written there ends the startup with a message saying where it belongs, instead of
+leaving somebody believing the permission was given (decision 66).
 
 ## Checklist when adding an adapter-specific property
 

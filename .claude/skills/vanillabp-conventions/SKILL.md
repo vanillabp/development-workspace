@@ -5,6 +5,8 @@ description: Development rules for implementing VanillaBP Version 2 features —
 
 # VanillaBP Development Conventions (Version 2)
 
+*Last checked against decision 70 of `adapter-platform-integration` and decision 8 of `spi-for-java`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 ## Design rules (in priority order)
 
 1. **Platform-neutral first.** New logic goes into
@@ -26,6 +28,19 @@ description: Development rules for implementing VanillaBP Version 2 features —
 5. **Extension SPI stays out of the core.** Extension-specific annotations/interfaces
    (e.g. Business Cockpit's `@UserTaskDetailsProvider`) live in the extension's
    `ExtensionWiringService.wireBpmn` implementation, not in VanillaBP itself.
+6. **Mechanics shared by adapters and extensions live once, in the core.** Before an
+   extension (the Business Cockpit commons or one of its BPMS halves) implements a
+   mechanism, check whether the core already does the same or something close for the
+   adapters: version ranges and tags (`VersionRange`, `ProcessVersions`), wiring of
+   annotated methods (`HandlerContract`), configuration resolved over levels, the outbox
+   store per aggregate, scoping of ids. If it does, generalize it there, in a platform
+   story merged and published first, and let adapters and extensions use the one
+   implementation. A second implementation in the extension is not acceptable where the
+   generalization is possible with reasonable effort (decided 2026-09-08). The balance:
+   an adapter or an extension must remain buildable without touching the core, so what
+   is generalized is a mechanism which really is the same on both sides, never
+   something BPMS-specific or specific to one extension; the SPI has to carry an ordinary
+   extension as it is.
 
 ## Testing conventions
 
@@ -87,8 +102,25 @@ SQL) — better readability.
   that repository only. Read it before changing behaviour. Where a change would make an entry
   untrue, **ask before writing the change**; a decision is superseded rather than edited, keeps
   its number, and the successor gets the next free one. Each repository's `AGENTS.md` states it.
+  Before you open a pull request, check that a number your branch hands out is still free,
+  against `origin/main` AND against every open pull request (`bin/check-decision-numbers.sh`
+  where the repository has it). A second branch claims the same number easily, and at the merge
+  a `see decision 21` in a Java file can no longer be changed. Read each citation before you
+  renumber: a branch may cite a number somebody else handed out, and that one stays.
+- **`UPGRADE.md`** (every repository which has one) = the step from VanillaBP 1 to the 2.0
+  release, and nothing else. An entry is owed where a version-1 application behaves differently or
+  has to change something. A change between two snapshots of 2.0 earns no entry, however much work
+  it was. What it earns instead is a wiki page where the end state belongs, a `DECISIONS.md` entry
+  where several places rely on the reasoning, and nothing at all where it is neither. The file is
+  organised per version line and then per topic, and no heading carries a date; the user-facing half
+  is the wiki page `Migrating-from-version-1`, which wins where the two disagree.
+  `process-engine-api-adapter` has no such file and gets none, because there was never a version-1
+  release of it. Each repository's `AGENTS.md` states the rule.
 - Versions: all artifacts are aligned to 2.0.0-SNAPSHOT (`spi-for-java`:
-  1.1.1-SNAPSHOT).
+  1.2.0-SNAPSHOT; 1.2.0 is the version which added asynchronous task completion,
+  `@WorkflowEnded`, `@WorkflowStartedByBpms`, `sendSignal` and `aggregateChanged`).
+  User-facing documentation writes versions as `2.0`, without a patch digit and without
+  `-SNAPSHOT`.
 
 **A javadoc, README or wiki sentence which promises behaviour is part of the
 behaviour.** Either a test fails when it stops being true, or the sentence says that it
@@ -125,15 +157,18 @@ VanillaBP core concept — see the `vanillabp-config-validation` skill. Never ad
   now; the former "not yet supported" rejection is gone and regression
   tests in `MigrationAdapterPropertiesTest` and `VanillaBpConfigurationBindingTest`
   keep it that way.
-- Two SPI modules exist: business code implements interfaces from
+- Three SPI modules exist: business code implements interfaces from
   `io.vanillabp:vanillabp-integration-spi` (package `io.vanillabp.integration.spi`,
   e.g. `AggregatePersistenceAware`); adapters implement
-  `io.vanillabp.adapter:migration-adapter-spi`. Never leak adapter-SPI types into
+  `io.vanillabp:vanillabp-adapter-spi`; an extension of the deployment pipeline
+  implements `ExtensionWiringService` from `io.vanillabp:vanillabp-extension-spi`,
+  which the adapter SPI extends and brings along. Never leak adapter-SPI types into
   business-facing modules.
 - Two-phase workflow starts run through the `PhaseTwoOutbox` SPI: stores implement
-  exactly one method `boolean schedule(PhaseTwoCall)`; typed default methods build
-  the call (START carries the elected adapter ID — persisted, used in phase two
-  without re-election). Dispatch: outbox → core-owned `PhaseTwoRouter` →
+  exactly one method `boolean schedule(PhaseTwoCall)`; the core builds the call from
+  the `PhaseOperation` (START carries the elected adapter ID — persisted, used in
+  phase two without re-election). An operation is defined once, in `PhaseOperation`,
+  and an adapter contributes a `PhaseOperationHandler` per operation. Dispatch: outbox → core-owned `PhaseTwoRouter` →
   `MigrationProcessService` → adapter (process-service beans register with the
   router at bean creation, incl. a String→ID-type converter; conversion happens
   exactly once, in the router). Contract: unique idempotency key (duplicate = no-op

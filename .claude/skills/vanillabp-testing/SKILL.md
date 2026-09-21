@@ -5,6 +5,8 @@ description: Testing strategy and concrete test patterns for VanillaBP — featu
 
 # VanillaBP testing strategy & patterns
 
+*Last checked against decision 70 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 ## Test pyramid, inverted priority: features first
 
 1. **Feature/acceptance tests (E2E) are the preferred kind** — one per feature and per
@@ -182,6 +184,18 @@ compiler's line table.
   it). It sits at the greatest inheritance distance, so a double or a repository for a
   specific aggregate still wins. A `SpringDataUtil` stub whose `getRepository` throws is
   NOT enough any more: that throw is exactly what the startup check reports.
+- **A dispatch observed is not an entry finished.** The listener hooks of the dummy
+  adapter run INSIDE the dispatch. The dispatcher frees the entry's idempotency key one
+  update later, when it marks the entry DONE. So a test which schedules the same
+  operation right after a listener reported the dispatch can meet an entry which is still
+  pending: the schedule is discarded as a duplicate, correctly, and the invocation the
+  test waits for never comes. Red on a loaded machine, green on the next run. That reads
+  like flakiness. It is not. An assertion about deduplication therefore waits for the
+  STORE, until nothing of that key is left undone, never for the listener. The timeout is
+  not the knob: sixty poll cycles were never the problem. And where a test plans against
+  a pending entry on purpose, it says so in a comment, because both shapes look the same
+  from the outside. This was fixed twice already, once in the gruelbox deduplication
+  window test, once in the repetition tests of all four outbox stores.
 - **Shared test beans are reset by the test which changed them** (`@AfterEach`), not only
   in the next class's `@BeforeEach`. Surefire and Failsafe run `alphabetical` (parent POM)
   so a runner's order matches the local one, but a left-behind window or stub answer still
@@ -195,7 +209,8 @@ compiler's line table.
 2. Adapter stories: assertions at the migration-adapter SPI boundary against the real
    BPMS/double; exemplary developer-E2E only once.
 3. Rollback/idempotency/recovery shapes where transactions or at-least-once semantics
-   are involved (copy the outbox IT shapes).
+   are involved (copy the outbox IT shapes), with every precondition read from the store
+   rather than from a listener.
 4. Startup-message tests assert message CONTENT (property keys!) via `CapturedOutput`.
 5. Check the per-platform coverage reports afterwards; fill gaps with integration
    tests first, unit tests for the remaining edges. Target >90% per platform, build breaks at 85.

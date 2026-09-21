@@ -5,6 +5,8 @@ description: Traits of the BPMS supported by VanillaBP adapters (Camunda 7, Camu
 
 # BPMS Characteristics (VanillaBP Version 2)
 
+*Last checked against decision 70 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 ## The one rule that shaped Version 2
 
 **Generic mechanisms live in `adapter-platform-integration`, never in an adapter.**
@@ -50,6 +52,31 @@ contact the cluster" — that is wrong. The real rule:
   the cluster.** There is no pre-existing state to validate; if the cluster is
   unavailable, the phase-two start just waits in the outbox until it is reachable. So a
   start adapter's phase one only resolves the aggregate id and verifies configuration.
+- **A start is still refusable, because some engines evaluate model expressions while
+  they create the instance.** Camunda 7 evaluates the condition of a conditional start
+  event of an event subprocess during the create, so `${order.getTotal() > 100}` against
+  an aggregate without that method throws out of the create command and no instance, no
+  incident and no history entry is written - the workflow never comes into being while
+  the application's transaction is long committed (spike `analysis-c7-nested-expressions`,
+  case ES1, 2026-09-06). Waiting does not fix it, which is why such a failure has to be
+  answered as permanent rather than repeated. Camunda 8 refuses a create it cannot
+  accept with HTTP 400 / gRPC `INVALID_ARGUMENT` instead, and the Process-Engine-API
+  cannot tell a refusal from an outage at all. When adding a start-side feature, ask
+  which expressions the engine reads at create time: the deployment check is the place
+  to catch them before anybody starts anything (story 214), and the permanent
+  classification is the net underneath.
+- **Camunda 8 evaluates nothing of the model while it creates an instance**, measured
+  against 8.9.19 on 2026-09-11: a start event whose output mapping reads a variable
+  nobody passed does not fail at all (FEEL answers null, the instance ran to COMPLETED,
+  no incident), and the same expression on a gateway raises `EXTRACT_VALUE_ERROR` on an
+  instance which EXISTS and is active. So a broken model on Camunda 8 is an incident on a
+  workflow somebody can look at, never a lost start. What Camunda 8 does refuse
+  deterministically is a create it cannot accept: a payload above `maxMessageSize` or a
+  tenant while multi-tenancy is off answer HTTP 400 / `INVALID_ARGUMENT`, which the
+  adapter calls permanent. A process which is not deployed answers 404 `NOT_FOUND` and a
+  model without a none start event answers 409 `INVALID_STATE`, and both of those are
+  classified repeatable today, so such a start is retried until the entry blocks - the
+  same slow loss the Camunda 7 case has, with a trigger an application meets more often.
 - **A phase-two failure is repeated unless the adapter says it cannot help.** The
   outbox retries until the entry is blocked, which is what makes an operation losing a
   concurrency conflict survivable. Where the BPMS will answer the same way every time
@@ -93,11 +120,16 @@ talks to the engine, the completion of a `@WorkflowTask` method included (a gate
 behind a service task decides on what that task computed). Reading the aggregate live was
 the older approach and it made models unportable: they worked on Camunda 7 and took the
 default flow everywhere else. What remains of it is a migration fallback for workflows
-started before the upgrade, removed in 2.1. Consequences for an adapter of the C7 family:
-the values are written INSIDE the engine's transaction (the handler ran there), nested
-values need a serialization format the application configures, and any
-`ProcessEnginePlugin` bean of the application has to reach the engine the adapter builds -
-otherwise no dataformat can be installed.
+started before the upgrade, which will be removed. Consequences for an adapter of the C7
+family: the values are written INSIDE the engine's transaction (the handler ran there), a
+value the engine has no variable type for needs a serialization format the application
+configures, and any `ProcessEnginePlugin` bean of the application has to reach the engine
+the adapter builds - otherwise no dataformat can be installed. That value is a nested one,
+an object or a collection, and it is a number Camunda 7 cannot store as itself: a
+`BigDecimal`, a `BigInteger` or a `Float` keeps its class rather than being widened to a
+double, because widening changes the value a model reads while EL coerces a comparison to
+`BigDecimal` anyway. A format is not free either, so the C7 deployment measures what its
+serializer makes of such a type and warns per attribute the models read.
 
 **An embedded engine also limits where the aggregate may live:** Camunda 7
 needs a relational database, and its engine transaction can never cover a workflow
@@ -123,9 +155,9 @@ This is the deep reason why **BPMS-specific adapters are necessary even where a 
 Process-Engine-API adapter exists**: the PEA deploys opaque resources and cannot express
 these engine-specific rewrites. Long-term vision: BPMS adapters *extend* the generic PEA
 adapter and add only these specifics (parsing/modification, listeners). Today that is
-not realistic — PEA implementations lag behind or are not clean enough — so the Camunda
-adapters are implemented natively; **only the ZenBPM adapter is planned on the PEA
-base** for now.
+not realistic — PEA implementations lag behind or are not clean enough — so every adapter
+is implemented natively, ZenBPM included (decided 2026-08-28: it is built like the Camunda
+adapters, in a repository of its own, by the ZenBPM vendor).
 
 ## Camunda 7 (embedded, synchronous)
 
@@ -133,10 +165,10 @@ base** for now.
   same DB transaction** as the business code. Calls are synchronous.
 - Version: **7.24 is the final feature release** (Oct 2025, LTS; community edition
   EOL — no further community releases). Pin 7.24.x.
-- `needsTwoPhaseCommitForStartingWorkflows()` = **true** (for every
-  adapter id): every progressing operation is scheduled through the phase-two outbox and
-  runs after the commit, so it can be repeated when it loses a conflict. An outbox is
-  therefore mandatory for Camunda 7. What phase one still does is ASK - a task which is
+- Even though the engine shares the application's transaction, **every progressing
+  operation is scheduled through the phase-two outbox** and runs after the commit, so it
+  can be repeated when it loses a conflict. An outbox is therefore mandatory for
+  Camunda 7 like for every other BPMS. What phase one still does is ASK - a task which is
   gone, a message nobody waits for and an unknown message start event still fail
   synchronously, where the application made the call - a wrong correlation id
   included, since the id the waiting execution expects is a local variable phase one
@@ -191,8 +223,8 @@ base** for now.
   removal announced for 8.10). Use the **plain Java client**, NOT Camunda's Spring
   SDK — platform wiring and configuration are done by VanillaBP itself (same
   reasoning as for the Process-Engine-API below).
-- `needsTwoPhaseCommitForStartingWorkflows()` = **true**: the engine cannot join the
-  local DB transaction. The actual `CreateProcessInstance` happens in phase two,
+- The engine cannot join the local DB transaction. The actual `CreateProcessInstance`
+  happens in phase two,
   dispatched through the `PhaseTwoOutbox`. **For starting a workflow, phase one does
   nothing against the cluster** — if the cluster is down, the phase-two start waits in
   the outbox until it is reachable (see the two-phase rules above; other operations
@@ -215,9 +247,11 @@ base** for now.
   aggregate state, not by call count).
 - No business key: the workflow-aggregate ID travels as a process variable; no other
   process variables are used (aggregate attribute sync is the `@SyncWithBPMS` story).
-- Strict idempotency of phase-two workflow starts needs a core-side
-  `WorkflowInstanceRegistry` (planned story) — C8 itself offers no cheap
-  "instance already exists for this aggregate" check due to the query lag.
+- Strict idempotency of phase-two workflow starts was decided against on 2026-07-28: there
+  is NO persistent registry, because probing per operation is affordable for the workloads
+  VanillaBP is built for. What mitigates a duplicate start is the redispatch probe
+  (`awarenessOfWorkflowForRedispatch`, never optimistic), and the residual window is
+  documented in `camunda8-adapter/README.md` under the idempotency limitation.
 
 ## Process-Engine-API (BPMS-agnostic, bpm-crafters)
 
@@ -252,18 +286,25 @@ base** for now.
   PEA at all (e.g. module-as-tenant semantics, viewer/history API) — a real
   BPMS-specific adapter built *on top of* the PEA adapter would be slimmer but still
   needs BPMS-specific escape hatches.
-- Treat it like a remote BPMS: `needsTwoPhaseCommitForStartingWorkflows()` = true,
-  so the generic outbox path is exercised.
+- Treat it like a remote BPMS: the generic outbox path is exercised, and phase one only
+  validates.
 
-## ZenBPM (future)
+## ZenBPM (next, built by its vendor)
 
 - New BPMS by pbinitiative with a plain **REST API**
-  (<https://github.com/pbinitiative/zenbpm/blob/main/openapi/api.yaml>). Adapter
-  planned later; expect remote-BPMS traits (two-phase start, eventual consistency,
-  polling or callback-based task delivery).
-- **Decided:** the ZenBPM adapter will be built **on the Process-Engine-API adapter**
-  (the first — and currently only — PEA-based BPMS adapter), adding the BPMS-specific
-  parts on top (see "BPMN modification at deployment").
+  (<https://github.com/pbinitiative/zenbpm/blob/main/openapi/api.yaml>). Expect
+  remote-BPMS traits (two-phase start, eventual consistency, polling or callback-based
+  task delivery).
+- **Decided 2026-08-28:** a native adapter in its own repository, like Camunda 7 and
+  Camunda 8, NOT built on the Process-Engine-API adapter. It is written by the ZenBPM
+  vendor rather than by this team, which is why the adapter SPI was finalised before the
+  vendor started and why the guide
+  `adapter-platform-integration/migration-adapter/ADAPTER-AUTHORS.md` exists.
+- What follows for us: the SPI is read by people who cannot ask us. Every mandatory call,
+  every promise a probe makes and every collaborator an adapter needs has to be visible
+  from the interface, from that guide and from the decision log, not from how the Camunda
+  adapters happen to do it. Where a trait below changes what an adapter has to do, the
+  guide is re-read in the same story.
 
 ## Cheat sheet
 
@@ -271,7 +312,7 @@ base** for now.
 |---|---|---|---|---|
 | Location | in-JVM | remote | depends (treat remote) | remote |
 | Joins local TX | inbound yes (task delivery), outbound no | no | `SYNC` mode may | no |
-| Aggregate sync default | `FULL` (it used to be `NONE` plus a live read) | `FULL` | `FULL` | `FULL` |
+| Aggregate sync default | `FULL` | `FULL` | `FULL` | `FULL` |
 | Two-phase start | yes | yes | yes | yes |
 | Eventual consistency | no | yes | possible | expected |
 | Task delivery | synchronous / job executor | polling workers, at-least-once | Task Subscription API | REST (tbd) |
@@ -279,7 +320,7 @@ base** for now.
 | Sees a version conflict of the aggregate | no while delivering (engine owns the TX) | yes | yes | yes |
 | Failed task ends in | retry by job executor, then incident | retries counted down, then incident | the engine's business | tbd |
 | Identity of a delivery | none needed (delivery in engine TX) | job key | task id | tbd |
-| Module isolation | tenant ID | tbd (variable/tenant) | not expressible (gap) | tbd |
+| Module isolation | tenant, prefixed identifiers, or none | tenant, prefixed identifiers, or none | prefixed identifiers or none (no tenant, gap) | tbd |
 | Client artifact | `org.camunda.bpm:camunda-engine` 7.24.x | `io.camunda:camunda-client-java` 8.8.x | `dev.bpm-crafters.process-engine-api:process-engine-api` | REST (openapi) |
 
 ## Checklist for every adapter feature
@@ -329,9 +370,10 @@ stable; where notification and aggregate share one transaction, the meaningful v
 
 ## Signals
 
-- **Camunda 7:** `RuntimeService.createSignalEvent(name)` with tenant handling, inside
-  the caller's transaction. It CAN target a single execution (`executionId`), which
-  VanillaBP deliberately does not expose - no other BPMS can.
+- **Camunda 7:** `RuntimeService.createSignalEvent(name)` with tenant handling, in phase
+  two after the caller's commit like every operation which progresses a workflow here.
+  It CAN target a single execution (`executionId`), which VanillaBP deliberately does
+  not expose - no other BPMS can.
 - **Camunda 8:** `BroadcastSignal` (8.3+), after the commit. No payload, no message id
   equivalent, so no deduplication.
 - **Process-Engine-API:** `SignalApi.sendSignal(SendSignalCmd)` exists (1.5+), so the
@@ -378,7 +420,11 @@ residual has no cure because a signal carries no key.
   instance - gap 18, both phases throw guiding.
 
 Conditional events are the asymmetry worth remembering: Camunda 7 has them and needs a
-variable change to look at them, Camunda 8 has none at all.
+variable change to look at them, Camunda 8 has none at all. On Camunda 7 they also reach
+into the start: the condition of a conditional start event of an event subprocess is
+evaluated while the instance is created, so a broken expression there kills the start
+rather than raising an incident, and the failure lands in the outbox (see the two-phase
+section above).
 
 Camunda 7 EL pitfall found here: `Camunda7TaskConnectable.applies` matches by ELEMENT id
 too, so every expression evaluated while an execution sits at a wired task used to resolve
@@ -389,14 +435,24 @@ no aggregate loaded).
 
 ## The end of a workflow
 
+The kind is `WorkflowEnd.Kind.COMPLETED` or `CANCELED` (renamed from `TERMINATED` by
+story 360). The SPI promises NO mapping of modelled paths to kinds: which paths a BPMS
+calls a cancelation is the BPMS' business and every adapter documents its own.
+
 - **Camunda 7:** an END execution listener at the PROCESS scope, inside the engine's
-  transaction. `PvmExecutionImpl#getDeleteReason()` is what distinguishes a cancelled
-  or terminated instance from one which reached an end event, and the current
-  activity id names that end event.
+  transaction. `PvmExecutionImpl#getDeleteReason()` is what distinguishes a canceled
+  or deleted instance from one which ran to its end, and the current activity id names
+  the element it ended at. Measured for story 360: a terminate end event and an
+  interrupting event subprocess set NO delete reason, so both report COMPLETED, and the
+  id named for the second one is the event subprocess rather than an end event
+  (`Camunda7WorkflowEndKindIT`).
 - **Camunda 8:** an `end` execution listener on the PROCESS element is accepted
   (verified against 8.8.31 - unlike `start` on a start event, which is rejected). It
-  runs for COMPLETED instances only: a cancelled instance is removed without running
-  end listeners, so the adapter cannot report a cancellation and says so.
+  runs for COMPLETED instances only. From release line 8.10 on a `cancel` execution
+  listener on the process element reports a canceled instance as well (story 370); on
+  8.8 and 8.9 such an instance is removed without running end listeners, so the adapter
+  cannot report it and says so at boot. A terminate end event and an interrupting event
+  subprocess COMPLETE the instance here too, measured for story 357.
 - **Process-Engine-API:** nothing. Task subscriptions are all the API offers, so the
   adapter warns instead of pretending (GAPS.md 17).
 

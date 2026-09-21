@@ -5,6 +5,8 @@ description: How VanillaBP validates configuration and writes error/log messages
 
 # Configuration validation & self-guiding errors (a VanillaBP core concept)
 
+*Last checked against decision 70 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+
 VanillaBP wants a developer to be able to start an **unconfigured or partially
 configured** application and be led to a working setup purely by the messages emitted
 on each boot — reading as little documentation as possible. Configuration errors are
