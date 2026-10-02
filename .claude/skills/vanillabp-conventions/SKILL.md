@@ -116,9 +116,10 @@ SQL) — better readability.
   is the wiki page `Migrating-from-version-1`, which wins where the two disagree.
   `process-engine-api-adapter` has no such file and gets none, because there was never a version-1
   release of it. Each repository's `AGENTS.md` states the rule.
-- Versions: all artifacts are aligned to 2.0.0-SNAPSHOT (`spi-for-java`:
-  1.2.0-SNAPSHOT; 1.2.0 is the version which added asynchronous task completion,
-  `@WorkflowEnded`, `@WorkflowStartedByBpms`, `sendSignal` and `aggregateChanged`).
+- Versions: every artifact is on 2.0.0-SNAPSHOT, `spi-for-java` included since
+  2026-09-25 (story 486). It used to sit on 1.2.0-SNAPSHOT, a line which was never
+  released; what that line had gathered, asynchronous task completion, `@WorkflowEnded`,
+  `@WorkflowStartedByBpms`, `sendSignal` and `aggregateChanged`, goes out with 2.0.
   User-facing documentation writes versions as `2.0`, without a patch digit and without
   `-SNAPSHOT`.
 
@@ -174,6 +175,8 @@ VanillaBP core concept — see the `vanillabp-config-validation` skill. Never ad
   exactly once, in the router). Contract: unique idempotency key (duplicate = no-op
   returning false), DONE instead of delete + retention cleanup
   (`vanillabp.outbox.retention`), documented at-least-once residual window.
-  Defaults: Spring+JPA = gruelbox-based (uniqueRequestId + retention threshold),
-  Spring+MongoDB and Quarkus (JDBC/Agroal/JTA) = own implementations with
-  STATUS/ADAPTER_ID/IDEMPOTENCY_KEY columns. Config: `vanillabp.outbox.*`.
+  Defaults: every platform uses the store VanillaBP writes itself, with
+  STATUS/ADAPTER_ID/IDEMPOTENCY_KEY columns on JDBC and the same fields on MongoDB.
+  The gruelbox-based store (uniqueRequestId + retention threshold) exists on Spring
+  Boot with JPA only, and it is opt-in: `vanillabp.outbox.gruelbox.enabled`.
+  Config: `vanillabp.outbox.*`.

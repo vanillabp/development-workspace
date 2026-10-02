@@ -123,7 +123,7 @@ compiler's line table.
 - **`TestCoverageUtils.testCoverageJavaAgent(...)`**: forwards the JaCoCo agent into
   forked JVMs — mandatory for `QuarkusProdModeTest` (`setJVMArgs(...)`), otherwise the
   forked run produces no coverage.
-- **`FreePortUtil`** for ports; **`TestJvmArgs`** (e.g. `quarkusProdModeTestDefaults()`)
+- **`OneFreePortPerJvm`** for ports (one port per test JVM, not per call); **`TestJvmArgs`** (e.g. `quarkusProdModeTestDefaults()`)
   for standard forked-JVM args; **`SpringBootTestApplication`** to build Spring test
   apps with custom classpath resources (add/hide resources) WITHOUT extra Maven
   modules; `FullyQualifiedRepositoryBeanNameGenerator` for JPA test apps with
@@ -147,7 +147,7 @@ compiler's line table.
   `addAsResource("workflow-module-descriptor/workflow-module", "META-INF/workflow-module")`.
 - **Quarkus, E2E:** `QuarkusProdModeTest` with
   `.setJVMArgs(testCoverageJavaAgent(quarkusProdModeTestDefaults()))`, `.setRun(true)`,
-  `quarkus.http.port` from `FreePortUtil`; the test application exposes small
+  `quarkus.http.port` from `OneFreePortPerJvm`; the test application exposes small
   **`introspect/...` REST endpoints** that report internal state, asserted with
   RestAssured (example:
   `quarkus-integration/integration-tests/workflowmodule-integration-tests/.../MultipleWorkflowServicesTest`).
@@ -196,6 +196,20 @@ compiler's line table.
   a pending entry on purpose, it says so in a comment, because both shapes look the same
   from the outside. This was fixed twice already, once in the gruelbox deduplication
   window test, once in the repetition tests of all four outbox stores.
+- **A negative assertion on a message names a sentence a positive assertion names too**,
+  in the same test class. A test which asserts that some wording is NOT in the output stops
+  checking anything the moment that wording is reworded, and it stays green while it does:
+  the sentence it excludes no longer exists, so of course it is absent. A positive
+  assertion in the same spot goes red instead, which is what sends whoever reworded the
+  message to the negative one next to it. So pair them: the case which SHOULD report the
+  finding asserts the sentence, the case which should not asserts its absence, and both
+  quote it in the same words. `Camunda7OldProcessVersionsIT` is the example after story
+  713; before it, `!reported.contains("served by NO @WorkflowTask method")` was the only
+  place in the class that knew the sentence at all, and the rewording of story 647 would
+  have left it green whatever the check reported. Two things are NOT this rule: asserting
+  that a SECRET or a raw value does not leak into a message (there is no positive twin, and
+  the point is the absence itself), and a phrase taken from a constant rather than typed
+  out, which a rename carries along.
 - **Shared test beans are reset by the test which changed them** (`@AfterEach`), not only
   in the next class's `@BeforeEach`. Surefire and Failsafe run `alphabetical` (parent POM)
   so a runner's order matches the local one, but a left-behind window or stub answer still
@@ -211,7 +225,8 @@ compiler's line table.
 3. Rollback/idempotency/recovery shapes where transactions or at-least-once semantics
    are involved (copy the outbox IT shapes), with every precondition read from the store
    rather than from a listener.
-4. Startup-message tests assert message CONTENT (property keys!) via `CapturedOutput`.
+4. Startup-message tests assert message CONTENT (property keys!) via `CapturedOutput`, and
+   every sentence one of them excludes is asserted positively somewhere in the same class.
 5. Check the per-platform coverage reports afterwards; fill gaps with integration
    tests first, unit tests for the remaining edges. Target >90% per platform, build breaks at 85.
 6. Every class: `SuppressOutputExtension` (only `CoverageGateTest` is exempt, via

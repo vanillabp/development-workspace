@@ -5,7 +5,7 @@ description: How to build a VanillaBP BPMS adapter repository — module layout,
 
 # Building a VanillaBP Adapter (Version 2)
 
-*Last checked against decision 70 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
+*Last checked against decision 93 of `adapter-platform-integration`, decision 23 of `camunda7-adapter`, decision 30 of `camunda8-adapter` and decision 12 of `process-engine-api-adapter`. A story which changes behaviour re-reads this skill and moves the anchor.*
 
 ## The SPI itself is described once, and not here
 
@@ -22,7 +22,21 @@ implements and what that costs when answered wrongly:
   `BPMS_UNAVAILABLE`, the redispatch probe, `canLocateWorkflows()`), and where the core waits;
 - what may never be assumed about threads, deliveries and ordering;
 - registration on Spring Boot and on Quarkus, with the dummy adapters as templates;
-- what an adapter repository brings, and the checklist before a pull request.
+- which VanillaBP artifacts an adapter depends on, imported through `io.vanillabp:vanillabp-bom`
+  with one version property, and the part descriptor which pairs an adapter with a platform;
+- what an adapter repository brings, the floor the platform really enforces, and the checklist
+  before a pull request.
+
+The floor is worth knowing before you plan a story, because it is what decides whether something is
+mandatory. It holds five things: the five mandatory collaborators, the seven `PhaseOperation`s which
+are `requiredOfEveryAdapter()`, the part descriptor, the platform's registration (a Quarkus
+capability respectively an `AdapterConfigurationBase` bean), and the wiring calls which let the core
+check the `@WorkflowTask` methods. Nothing else ends a boot from the platform's side.
+
+Everything above that floor is the adapter's own judgement, and the Process-Engine-API adapter
+proves it: no registered deployed version, no version catalog, no open-task probe, no health check,
+and it boots. So a story which says an adapter "must" do something outside the floor is saying what
+we want rather than what is checked, and it should be worded that way.
 
 **Read that document for all of it.** This skill keeps only what an agent working IN this
 workspace needs on top: which repositories are here, how they are built, and how a prompt for
@@ -55,7 +69,7 @@ that skill describes what each engine can do about it.
 ## Build order and commands
 
 ```
-io.vanillabp:spi-for-java:1.2.0-SNAPSHOT                     (user-facing annotations)
+io.vanillabp:spi-for-java:2.0.0-SNAPSHOT                     (user-facing annotations)
 io.vanillabp:vanillabp-integration-spi:2.0.0-SNAPSHOT        (integration SPI, business code)
 io.vanillabp:vanillabp-extension-spi:2.0.0-SNAPSHOT          (extension SPI)
 io.vanillabp:vanillabp-adapter-spi:2.0.0-SNAPSHOT            (adapter SPI)
@@ -100,6 +114,18 @@ repositories rather than about the SPI.
   is the anti-pattern `vanillabp-config-validation` names; do not copy it into new code.
 - **The dummy adapter's `dummy-adapter.two-phase-commit` flag is a test toggle**, not a template
   for real adapter configuration.
+- **A published class carries no Lombok and no MapStruct annotation** (decision 81 of
+  `adapter-platform-integration`). Javadoc runs neither, so a configuration class with `@Getter` is
+  published without a single accessor, and a code generator whose annotations reach the published
+  POM puts its runtime library into every application which adds the adapter. Both tools stay
+  welcome in tests and in build tools. The conversion of what exists is staged and not finished:
+  136 files across the platform and the four adapter repositories, 85 of them carrying `@Slf4j`
+  alone. Do not add a new one.
+- **A BPMS without isolation of its own keeps the `BY_ADAPTER` default and refuses it while
+  deploying**, with `scoping.validateNativeIsolationSupported`. Changing the default is the wrong
+  fix: the default is version 1's behaviour and an application upgrading has to find its running
+  workflows. The consequence is that every application on such an adapter configures
+  `name-clash-avoidance` explicitly, which belongs on the first page of that adapter's wiki.
 
 ## C7-family portability rules (Operaton / CIB seven readiness)
 

@@ -83,7 +83,52 @@ A citation into another repository's log is the same fragile pointer as a story 
 does not count as resolving. A decision spanning several repositories gets an entry in
 each, stating it from that repository's side.
 
-### 5. An overturned decision is asked about first, then superseded rather than edited
+### 5. A reworded message is followed where it is quoted
+
+Read every message the diff rewrites: a startup finding, a validation message, any text a
+developer reads.
+
+The words of such a message stand in repositories this branch does not touch. An adapter
+test boots an application and reads what the start said, to prove what its adapter
+reported. A rewording turns those tests red days later, in somebody else's pull request.
+Four assertions in three files of the Camunda 7 adapter went that way on 2026-09-27.
+
+So every message the diff changed is looked for TWICE in each adapter clone:
+
+```bash
+for adapter in ../camunda7-adapter ../camunda8-adapter ../process-engine-api-adapter; do
+  git -C "$adapter" grep -n "still run on version" -- '*.java'   # the words of the old sentence
+  git -C "$adapter" grep -ni "version '" -- '*.java'             # the words around a placeholder
+done
+```
+
+The first search reads the old sentence. The second one reads the words to the left and to
+the right of every PLACEHOLDER in it, and it ignores upper and lower case. The values these
+repositories put into a message are adapter ids, workflow module ids, BPMN process ids and
+versions, so the second search runs four times: `adapter '`, `version '`, `process '` and
+`workflow module '`.
+
+One search is not enough. A test asserts a SHORT fragment with the values already in it. A
+fragment which starts with stable words, such as `still run on version '1'`, is found by a
+search for the sentence. A fragment whose value stands right behind the first word, such as
+`adapter 'c7own'`, shares one single word with the old sentence, and no search for the
+sentence finds it. A value which moves into the subject line of a finding takes the first
+words of the sentence with it, and it often changes their case: `Adapter 'c7own'` became
+`adapter 'c7own'`.
+
+Neither search answers the question. They name the files to read, and nothing more. Both
+forms of a message match the same search, and the old sentence may live on in a second
+finding. `still run on version '%s'` is still the text of `reportOutfadedVersionInUse`,
+while the finding beside it reads differently now. The answer comes from running the suites
+the greps named against the changed platform. A scanner which normalises placeholders and
+searches in both directions was tried on 2026-09-27 and could not tell the two apart
+either.
+
+A test which reads the phrase from the platform instead of writing it down again follows a
+rewording by itself. Where a message is quoted that way, this check has nothing left to
+read.
+
+### 6. An overturned decision is asked about first, then superseded rather than edited
 
 Read the diff of `DECISIONS.md`, next to the behaviour change in the same commit.
 
@@ -102,7 +147,7 @@ A change which makes a decision untrue while the log stays untouched is a findin
 the code itself is right. So is a new entry which nothing cites, or one whose reasoning fits
 into a comment at the single place that needs it.
 
-### 6. A number the branch hands out is still free
+### 7. A number the branch hands out is still free
 
 Read the `DECISIONS.md` diff once more, this time only for the numbers.
 
@@ -130,7 +175,7 @@ Reviewing such a renumbering means reading each changed citation. A `see decisio
 branch can belong to somebody else's decision, and then the old number was the right one. A
 search and replace over the whole branch is what this check is here for.
 
-### 7. New comments say why, in words that stand alone
+### 8. New comments say why, in words that stand alone
 
 Read every comment the diff adds.
 
@@ -142,7 +187,7 @@ both move.
 Where a name could have carried the explanation, the name is the better fix. Look for that
 before accepting a comment.
 
-### 8. English a second-language reader gets on the first pass
+### 9. English a second-language reader gets on the first pass
 
 Read every English sentence the diff adds or rewrites: comments and Javadoc, `README.md`,
 `DECISIONS.md`, `UPGRADE.md`, `GAPS.md`, wiki pages, and the text of the pull request
@@ -179,7 +224,7 @@ text the diff leaves alone; this check reads what the branch writes, not what it
 
 The fix is the rewritten sentence, not a note that the sentence is long.
 
-### 9. What the change costs the next reader
+### 10. What the change costs the next reader
 
 Read the changed methods as a whole.
 
