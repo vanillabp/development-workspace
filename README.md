@@ -19,6 +19,24 @@ directories that are **not** part of this repo (legacy repos
 such as `prompts*`, `dev-containers-blueprints`, `processengineapi-adapter`)
 stay untracked by design — see `.gitignore`.
 
+## From a bug to a pull request
+
+Found a bug in VanillaBP? You can hand it to a coding agent.
+
+1. Clone this repository with `git clone --recurse-submodules` (see [Cloning](#cloning)).
+2. Start your coding agent at the root of the workspace and describe the bug. Claude Code picks up
+   the skills in `.claude/skills` from there.
+3. The agent builds a scenario which reproduces the bug, looks for the cause and fixes it. Then it
+   pushes a branch to your fork and opens a pull request from there.
+4. The VanillaBP team reviews the pull request and merges it.
+
+You need a GitHub account, the GitHub CLI logged in with `gh auth login`, a fork of the repository
+you change (the agent can create it with `gh repo fork`), and Java 21, Maven and Docker for the
+build. The [DevContainer](#devcontainer-tooling-dev-containers) below brings Java, Maven, Docker,
+the GitHub CLI and Claude Code, but it is optional. The `CONTRIBUTING.md` of each repository says
+the same in detail, for example the one of
+[`adapter-platform-integration`](https://github.com/vanillabp/adapter-platform-integration/blob/main/CONTRIBUTING.md#from-a-bug-to-a-pull-request).
+
 ## Cloning
 
 Clone with all submodules in one go:
@@ -53,9 +71,9 @@ your submodule work **before** committing an advanced pointer here.
 | `adapter-platform-integration.wiki` | `vanillabp/adapter-platform-integration.wiki` | vanillabp |
 | `process-engine-api-adapter` | `vanillabp/process-engine-api-adapter` | vanillabp |
 | `process-engine-api-adapter.wiki` | `vanillabp/process-engine-api-adapter.wiki` | vanillabp |
-| `camunda7-adapter` | `vanillabp/camunda7-adapter` | vanillabp |
+| `camunda7-adapter` | `camunda-community-hub/vanillabp-camunda7-adapter` | camunda-community-hub |
 | `camunda7-adapter.wiki` | `camunda-community-hub/vanillabp-camunda7-adapter.wiki` | camunda-community-hub |
-| `camunda8-adapter` | `vanillabp/camunda8-adapter` | vanillabp |
+| `camunda8-adapter` | `camunda-community-hub/vanillabp-camunda8-adapter` | camunda-community-hub |
 | `camunda8-adapter.wiki` | `camunda-community-hub/vanillabp-camunda8-adapter.wiki` | camunda-community-hub |
 | `renovate-config` | `vanillabp/renovate-config` | vanillabp |
 | `blueprints` | `vanillabp-blueprints/blueprints` | vanillabp-blueprints |
