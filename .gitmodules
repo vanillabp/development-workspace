@@ -16,7 +16,7 @@
 	branch = main
 [submodule "camunda7-adapter"]
 	path = camunda7-adapter
-	url = git@github.com:vanillabp/camunda7-adapter.git
+	url = git@github.com:camunda-community-hub/vanillabp-camunda7-adapter.git
 	branch = main
 [submodule "camunda7-adapter.wiki"]
 	path = camunda7-adapter.wiki
@@ -24,7 +24,7 @@
 	branch = master
 [submodule "camunda8-adapter"]
 	path = camunda8-adapter
-	url = git@github.com:vanillabp/camunda8-adapter.git
+	url = git@github.com:camunda-community-hub/vanillabp-camunda8-adapter.git
 	branch = main
 [submodule "camunda8-adapter.wiki"]
 	path = camunda8-adapter.wiki
