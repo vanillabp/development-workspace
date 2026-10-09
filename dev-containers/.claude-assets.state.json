@@ -1,0 +1,19 @@
+{
+  "plugins": {
+    "selected": [
+      "caveman@caveman",
+      "clangd-lsp@claude-plugins-official",
+      "hyperframes@hyperframes"
+    ],
+    "hostSnapshot": [
+      "caveman@caveman",
+      "clangd-lsp@claude-plugins-official",
+      "hyperframes@hyperframes",
+      "impeccable@impeccable"
+    ]
+  },
+  "skills": {
+    "selected": [],
+    "hostSnapshot": []
+  }
+}
