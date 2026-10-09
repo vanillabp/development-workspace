@@ -187,6 +187,11 @@ That is enough to build and test. The build reads the snapshots it needs from Ma
 reading them needs no login. A pull request from a fork cannot publish anything. Only a push to
 `main` publishes a snapshot.
 
+The blueprints are the exception. Their build also reads the snapshots of the two Camunda adapters,
+which stay in GitHub Packages and need a token. So in the blueprints, the build of a pull request
+from a fork fails with HTTP 401 before it compiles your change. Say so in the pull request, and a
+maintainer takes it from there.
+
 Also, a maintainer approves the first run of the workflows for a contributor whose first pull
 request this is in the repository. Until then, the checks wait.
 
@@ -198,6 +203,40 @@ before it.
 Every push to `main` publishes a `2.0.0-SNAPSHOT` to the snapshot repository of Maven Central,
 `https://central.sonatype.com/repository/maven-snapshots/`. The POMs name that repository, so Maven
 finds the snapshots on its own. You need no token and no entry in your `~/.m2/settings.xml`.
+
+The snapshots of the two Camunda adapters are the exception. Their namespace belongs to the Camunda
+Community Hub, so they stay in GitHub Packages, and GitHub Packages asks for a login even for a
+public package. To read them, create a personal access token (classic) with the scope
+`read:packages` and nothing else, and add a `repository` and a `server` with the same `id` to your
+`~/.m2/settings.xml`. Put the repository into a profile which is not active by default:
+
+```xml
+<settings>
+  <profiles>
+    <profile>
+      <id>vanillabp-adapter-snapshots</id>
+      <repositories>
+        <repository>
+          <id>vanillabp-camunda7-adapter</id>
+          <url>https://maven.pkg.github.com/camunda-community-hub/vanillabp-camunda7-adapter</url>
+          <releases><enabled>false</enabled></releases>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+        <!-- the same for vanillabp-camunda8-adapter -->
+      </repositories>
+    </profile>
+  </profiles>
+  <servers>
+    <server>
+      <id>vanillabp-camunda7-adapter</id>
+      <username>your-github-login</username>
+      <password>${env.GITHUB_PACKAGES_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
+```
+
+Then build with `-Pvanillabp-adapter-snapshots`.
 
 The workspace sees these snapshots as well. Maven takes the newer of two snapshots: the one you
 installed, or the one on Maven Central. If `main` published after your last install, the build of the next
