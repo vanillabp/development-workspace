@@ -45,8 +45,8 @@ The sections below describe the way without an agent. The agent takes the same s
 - Java 21 or newer, and Maven.
 - Docker, for the tests which start a database or a Camunda 8 cluster in a container. The
   `CONTRIBUTING.md` of each repository says which of its tests need it.
-- An SSH key in your GitHub account. The submodules are cloned over SSH. Without a key, see
-  [No SSH key](#no-ssh-key).
+- An SSH key in your GitHub account. The submodules are cloned over SSH. See
+  [Check your SSH access](#check-your-ssh-access).
 
 The [DevContainer](#devcontainer-tooling-dev-containers) below brings Java, Maven, Docker, the
 GitHub CLI and Claude Code. You do not need it.
@@ -79,17 +79,18 @@ Submodules record a specific commit of each referenced repo. For a recursive clo
 commit must exist on the submodule's remote. So push your submodule work **before** you commit an
 advanced pointer here.
 
-### No SSH key
+### Check your SSH access
 
-Tell git to use HTTPS for GitHub, and let `gh` hand your login to git. Do both before you clone:
+Before you clone, check that GitHub accepts your SSH key:
 
 ```sh
-git config --global url."https://github.com/".insteadOf "git@github.com:"
-gh auth setup-git
+ssh -T git@github.com
 ```
 
-The first line changes every GitHub URL on your machine, not only the ones here. Remove it with
-`git config --global --unset url."https://github.com/".insteadOf` when you no longer want that.
+GitHub answers `Hi <your-name>! You've successfully authenticated, but GitHub does not provide shell
+access.` Then the clone works. If it answers `Permission denied (publickey)`, add a key to your
+account first, as GitHub explains in
+[Adding a new SSH key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account).
 
 ## Building the repositories in order
 
