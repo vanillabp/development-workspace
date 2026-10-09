@@ -145,6 +145,9 @@ compiler's line table.
   `.withApplicationRoot(jar -> jar.addAsResource("application.yaml").addClass(...))` —
   workflow-module marker files added via
   `addAsResource("workflow-module-descriptor/workflow-module", "META-INF/workflow-module")`.
+  The application's class loader loads the test class itself, so a helper called from a
+  static field of the test class must be added with `addClass` too, or `<clinit>` fails with
+  `NoClassDefFoundError`.
 - **Quarkus, E2E:** `QuarkusProdModeTest` with
   `.setJVMArgs(testCoverageJavaAgent(quarkusProdModeTestDefaults()))`, `.setRun(true)`,
   `quarkus.http.port` from `OneFreePortPerJvm`; the test application exposes small

@@ -406,7 +406,8 @@ residual has no cure because a signal carries no key.
   instance and `local(true)` for the element instance of the scope the task runs in,
   after the commit. The keys are NOT derivable without the query API: a process instance
   is found by the aggregate-ID variable, the task's element instance via job search by
-  job key (a VanillaBP task id IS the job key). The API has no parent link on an element
+  job key (a VanillaBP task id of a service task IS the job key; for a user task it is the
+  user-task key, and the delivery record names the task since story 903). The API has no parent link on an element
   instance (only an `elementInstanceScopeKey` FILTER), so the scope around a task is
   found by walking down from the process instance. So the feature requires secondary storage, and the adapter says so. NOTE
   variable filters carry JSON values - a String has to be searched WITH quotes, which

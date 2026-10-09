@@ -178,5 +178,6 @@ VanillaBP core concept — see the `vanillabp-config-validation` skill. Never ad
   Defaults: every platform uses the store VanillaBP writes itself, with
   STATUS/ADAPTER_ID/IDEMPOTENCY_KEY columns on JDBC and the same fields on MongoDB.
   The gruelbox-based store (uniqueRequestId + retention threshold) exists on Spring
-  Boot with JPA only, and it is opt-in: `vanillabp.outbox.gruelbox.enabled`.
+  Boot with JPA only and lives in its own repository since decision 102: an
+  application opts in by adding `io.vanillabp:gruelbox-phase-two-outbox`.
   Config: `vanillabp.outbox.*`.

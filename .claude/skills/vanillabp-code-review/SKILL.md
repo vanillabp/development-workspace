@@ -126,7 +126,13 @@ either.
 
 A test which reads the phrase from the platform instead of writing it down again follows a
 rewording by itself. Where a message is quoted that way, this check has nothing left to
-read.
+read. The platform publishes such phrases as public constants beside the check which writes
+them (decision 105 of `adapter-platform-integration`): `DeployedProcessVersionsCheck`
+carries the words of its findings about held and faded-out versions, and `DeliveryRecords`
+the words of the warning about a missing delivery log. For those findings, change the text
+in the constant and nothing else; a rename of a constant is a build error in the adapters
+instead of a search. The check still applies to every other message, and to every quote in a
+wiki page, a README or an `UPGRADE.md` entry, constant or not.
 
 ### 6. An overturned decision is asked about first, then superseded rather than edited
 
