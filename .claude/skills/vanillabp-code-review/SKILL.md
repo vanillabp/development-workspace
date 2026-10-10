@@ -134,6 +134,22 @@ in the constant and nothing else; a rename of a constant is a build error in the
 instead of a search. The check still applies to every other message, and to every quote in a
 wiki page, a README or an `UPGRADE.md` entry, constant or not.
 
+A quote in a document is not found by the greps above, because they read Java files only. So
+the same two searches run once more over the Markdown files of every clone, the wikis
+included:
+
+```bash
+for repo in ../adapter-platform-integration ../adapter-platform-integration.wiki \
+    ../camunda7-adapter ../camunda7-adapter.wiki ../camunda8-adapter ../camunda8-adapter.wiki \
+    ../process-engine-api-adapter ../process-engine-api-adapter.wiki ../blueprints; do
+  git -C "$repo" grep -n "still run on version" -- '*.md'   # README, UPGRADE.md, wiki pages
+  git -C "$repo" grep -ni "version '" -- '*.md'
+done
+```
+
+A wiki page often quotes a whole message as an example of what a start prints. Such a quote
+is fixed by hand, because no test reads it and nothing turns red when it goes stale.
+
 ### 6. An overturned decision is asked about first, then superseded rather than edited
 
 Read the diff of `DECISIONS.md`, next to the behaviour change in the same commit.
