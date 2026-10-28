@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout superproject (submodules handled manually below)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         # We do NOT use `submodules: recursive` here: checkout would try SSH for
         # the git@github.com: URLs and fail (no key on the runner). Instead we
         # rewrite to HTTPS first, then init. persist-credentials keeps the
