@@ -46,3 +46,43 @@
 	path = process-engine-api-adapter.wiki
 	url = git@github.com:vanillabp/process-engine-api-adapter.wiki.git
 	branch = master
+[submodule "operaton-adapter"]
+	path = operaton-adapter
+	url = git@github.com:vanillabp/operaton-adapter.git
+	branch = main
+[submodule "operaton-adapter.wiki"]
+	path = operaton-adapter.wiki
+	url = git@github.com:vanillabp/operaton-adapter.wiki.git
+	branch = master
+[submodule "cibseven-adapter"]
+	path = cibseven-adapter
+	url = git@github.com:vanillabp/cibseven-adapter.git
+	branch = main
+[submodule "cibseven-adapter.wiki"]
+	path = cibseven-adapter.wiki
+	url = git@github.com:vanillabp/cibseven-adapter.wiki.git
+	branch = master
+[submodule "businesscockpit-operaton-adapter"]
+	path = businesscockpit-operaton-adapter
+	url = git@github.com:vanillabp/businesscockpit-operaton-adapter.git
+	branch = main
+[submodule "businesscockpit-operaton-adapter.wiki"]
+	path = businesscockpit-operaton-adapter.wiki
+	url = git@github.com:vanillabp/businesscockpit-operaton-adapter.wiki.git
+	branch = master
+[submodule "businesscockpit-cibseven-adapter"]
+	path = businesscockpit-cibseven-adapter
+	url = git@github.com:vanillabp/businesscockpit-cibseven-adapter.git
+	branch = main
+[submodule "businesscockpit-cibseven-adapter.wiki"]
+	path = businesscockpit-cibseven-adapter.wiki
+	url = git@github.com:vanillabp/businesscockpit-cibseven-adapter.wiki.git
+	branch = master
+[submodule "business-cockpit.wiki"]
+	path = business-cockpit.wiki
+	url = git@github.com:vanillabp/business-cockpit.wiki.git
+	branch = master
+[submodule "business-cockpit"]
+	path = business-cockpit
+	url = git@github.com:vanillabp/business-cockpit.git
+	branch = main

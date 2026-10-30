@@ -215,6 +215,16 @@ adapters, in a repository of its own, by the ZenBPM vendor).
   embedded engines side by side with **separate schemas/datasources per adapter id**
   (a low-level in-place DB swap affects all instances at once and is out of
   VanillaBP's scope).
+- **CIB seven** (adapter type `cibseven`, repository `vanillabp/cibseven-adapter`, generated
+  from the C7 adapter, version `2.0.0-2.2` carries the CIB seven minor): embedded, the same
+  traits as Camunda 7. Differences: 2.2 adds modeler/AI-chat tables (`MOD_*`,
+  `CHAT_MESSAGES`), which the engine creates and checks by default and which break a
+  `table-prefix` setup, so the adapter defaults `modeler-enabled` to `false`; the webapps
+  starter `-webapp-4` brings a webclient which needs `cibseven.webclient.authentication.jwtSecret`
+  (base64, at least 155 chars); `/camunda` answers 200 instead of redirecting. CIB seven
+  documents an in-place switch from Camunda 7.24 on the same tables, and the adapter counts
+  `camunda7:`/`operaton:` deployment sources as its own. Only `x.y.0` minors are on Maven
+  Central; patches are for paying customers and keep API and schema.
 
 ## Camunda 8 (remote, eventually consistent)
 

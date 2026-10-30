@@ -36,12 +36,22 @@
 # Legacy (blueprint-workflowmodule-*, vanillabp-camunda*) is intentionally absent.
 !/adapter-platform-integration/
 !/adapter-platform-integration.wiki/
+!/businesscockpit-cibseven-adapter/
+!/businesscockpit-cibseven-adapter.wiki/
+!/businesscockpit-operaton-adapter/
+!/businesscockpit-operaton-adapter.wiki/
 !/blueprints/
 !/blueprints-organisation-page/
+!/business-cockpit/
+!/business-cockpit.wiki/
 !/camunda7-adapter/
 !/camunda7-adapter.wiki/
 !/camunda8-adapter/
 !/camunda8-adapter.wiki/
+!/cibseven-adapter/
+!/cibseven-adapter.wiki/
+!/operaton-adapter/
+!/operaton-adapter.wiki/
 !/process-engine-api-adapter/
 !/process-engine-api-adapter.wiki/
 !/renovate-config/

@@ -95,6 +95,10 @@
         { "name": "camunda7-adapter.wiki", "baseRef": "master" },
         { "name": "camunda8-adapter", "baseRef": "main" },
         { "name": "camunda8-adapter.wiki", "baseRef": "master" },
+        { "name": "operaton-adapter", "baseRef": "main" },
+        { "name": "operaton-adapter.wiki", "baseRef": "master" },
+        { "name": "cibseven-adapter", "baseRef": "main" },
+        { "name": "cibseven-adapter.wiki", "baseRef": "master" },
         { "name": "blueprints", "baseRef": "main" },
         { "name": "blueprints-organisation-page", "baseRef": "main" },
         { "name": "hazelcast-shared-election-cache", "baseRef": "main" },
@@ -102,10 +106,15 @@
         { "name": "business-cockpit", "baseRef": "main" },
         { "name": "business-cockpit.wiki", "baseRef": "master" },
         { "name": "businesscockpit-camunda8-adapter", "baseRef": "main" },
+        { "name": "businesscockpit-camunda8-adapter.wiki", "baseRef": "master" },
         { "name": "businesscockpit-camunda7-adapter", "baseRef": "main" },
         { "name": "businesscockpit-camunda7-adapter.wiki", "baseRef": "master" },
         { "name": "businesscockpit-process-engine-api-adapter", "baseRef": "main" },
-        { "name": "businesscockpit-process-engine-api-adapter.wiki", "baseRef": "master" }
+        { "name": "businesscockpit-process-engine-api-adapter.wiki", "baseRef": "master" },
+        { "name": "businesscockpit-operaton-adapter", "baseRef": "main" },
+        { "name": "businesscockpit-operaton-adapter.wiki", "baseRef": "master" },
+        { "name": "businesscockpit-cibseven-adapter", "baseRef": "main" },
+        { "name": "businesscockpit-cibseven-adapter.wiki", "baseRef": "master" }
     ],
 
     // --- Warmup builds ------------------------------------------------------
@@ -135,13 +144,17 @@
         { "repo": "process-engine-api-adapter", "mvn-goal": "compile" },
         { "repo": "camunda7-adapter", "mvn-goal": "compile" },
         { "repo": "camunda8-adapter", "mvn-goal": "compile" },
-        { "repo": "blueprints", "mvn-goal": "compile" },
+        { "repo": "operaton-adapter", "mvn-goal": "compile" },
+        { "repo": "cibseven-adapter", "mvn-goal": "compile" },
         { "repo": "hazelcast-shared-election-cache", "mvn-goal": "compile" },
         { "repo": "gruelbox-phase-two-outbox", "mvn-goal": "compile" },
         { "repo": "business-cockpit", "mvn-goal":  "compile -DskipTests=true -DskipITs=true -Pjava-install" },
         { "repo": "businesscockpit-process-engine-api-adapter", "mvn-goal": "compile" },
         { "repo": "businesscockpit-camunda7-adapter", "mvn-goal": "compile" },
-        { "repo": "businesscockpit-camunda8-adapter", "mvn-goal": "compile" }
+        { "repo": "businesscockpit-camunda8-adapter", "mvn-goal": "compile" },
+        { "repo": "businesscockpit-operaton-adapter", "mvn-goal": "compile" },
+        { "repo": "businesscockpit-cibseven-adapter", "mvn-goal": "compile" },
+        { "repo": "blueprints", "mvn-goal": "compile" }
     ],
 
     // --- Host ports + labels ------------------------------------------------

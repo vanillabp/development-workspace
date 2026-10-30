@@ -100,6 +100,15 @@ Each repository builds on the one before it:
 2. `adapter-platform-integration`, the platform. It needs `spi-for-java`.
 3. The adapters: `camunda7-adapter`, `camunda8-adapter` and `process-engine-api-adapter`. Each one
    needs `spi-for-java` and the platform.
+4. The adapters `operaton-adapter` and `cibseven-adapter`. Each one needs `spi-for-java`, the
+   platform and `camunda7-adapter`, because its module `migration-tests` runs the Camunda 7 adapter
+   next to it.
+5. `business-cockpit`. It needs `spi-for-java` and the platform. It also reads
+   `Phactum/mongodb-changesets`, which is not part of the workspace and comes from GitHub Packages,
+   so its build needs a token, see [Using the published snapshots](#using-the-published-snapshots).
+6. The Business Cockpit adapters `businesscockpit-operaton-adapter` and
+   `businesscockpit-cibseven-adapter`. Each one needs `business-cockpit`, the adapter of its BPMS
+   and `camunda7-adapter`.
 
 Build and install the repositories before the one you change. You may skip their tests:
 
@@ -187,61 +196,130 @@ That is enough to build and test. The build reads the snapshots it needs from Ma
 reading them needs no login. A pull request from a fork cannot publish anything. Only a push to
 `main` publishes a snapshot.
 
-The blueprints are the exception. Their build also reads the snapshots of the two Camunda adapters,
-which stay in GitHub Packages and need a token. So in the blueprints, the build of a pull request
-from a fork fails with HTTP 401 before it compiles your change. Say so in the pull request, and a
-maintainer takes it from there.
+There are three exceptions, because reading GitHub Packages needs a secret:
+
+- `blueprints` reads the snapshots of the two Camunda adapters,
+  which stay in GitHub Packages and need a token. So in the blueprints, the build of a pull request
+  from a fork fails with HTTP 401 before it compiles your change. Say so in the pull request, and a
+  maintainer takes it from there.
+- `business-cockpit` reads `Phactum/mongodb-changesets` from GitHub Packages. Its build fails with
+  HTTP 401 before it compiles your change.
+- In `operaton-adapter`, `cibseven-adapter` and their two Business Cockpit adapters, the module
+  `migration-tests` runs the Camunda 7 adapter, whose snapshots are only in GitHub Packages. The
+  build of that module fails with HTTP 401.
+
+Such a red build says nothing about your change. If your build failed this way, say so in the pull
+request. A maintainer can push your branch to the repository, and there the build gets the secret.
 
 Also, a maintainer approves the first run of the workflows for a contributor whose first pull
 request this is in the repository. Until then, the checks wait.
 
 ## Using the published snapshots
 
-This section is for somebody who clones a single repository and does not want to build the ones
-before it.
+This is for somebody who clones a single repository and does not want to build the ones before it.
+In the workspace you need it only for `Phactum/mongodb-changesets`, which `business-cockpit` reads
+and the workspace does not hold.
 
-Every push to `main` publishes a `2.0.0-SNAPSHOT` to the snapshot repository of Maven Central,
-`https://central.sonatype.com/repository/maven-snapshots/`. The POMs name that repository, so Maven
-finds the snapshots on its own. You need no token and no entry in your `~/.m2/settings.xml`.
+Every push to `main` publishes a `2.0.0-SNAPSHOT`. Most repositories publish it to the snapshot
+repository of Maven Central, `https://central.sonatype.com/repository/maven-snapshots/`. Their
+parent POM `io.vanillabp:release-parent` names that repository, and reading it needs no login.
 
-The snapshots of the two Camunda adapters are the exception. Their namespace belongs to the Camunda
-Community Hub, so they stay in GitHub Packages, and GitHub Packages asks for a login even for a
-public package. To read them, create a personal access token (classic) with the scope
-`read:packages` and nothing else, and add a `repository` and a `server` with the same `id` to your
-`~/.m2/settings.xml`. Put the repository into a profile which is not active by default:
+Three registries are different. `camunda7-adapter` and `camunda8-adapter` publish their snapshots
+to the GitHub Packages registry of their repository, and the Business Cockpit reads
+`Phactum/mongodb-changesets` from GitHub Packages too. GitHub Packages asks for a login even for a
+public package. So for these three you need:
+
+1. A personal access token (classic) with the scope `read:packages` and nothing else. Create it
+   under GitHub, Settings, Developer settings, Personal access tokens, Tokens (classic). GitHub
+   Packages does not accept a fine-grained token here.
+2. A `server` and a `repository` entry in your `~/.m2/settings.xml` for each registry, with the
+   same `id`.
+
+Put the entries into a profile which is not active by default. Otherwise a build of the workspace
+could take a published snapshot instead of the one you just installed. Here is an example with the
+token in an environment variable, so the file holds no secret:
 
 ```xml
-<settings>
-  <profiles>
-    <profile>
-      <id>vanillabp-adapter-snapshots</id>
-      <repositories>
-        <repository>
-          <id>vanillabp-camunda7-adapter</id>
-          <url>https://maven.pkg.github.com/camunda-community-hub/vanillabp-camunda7-adapter</url>
-          <releases><enabled>false</enabled></releases>
-          <snapshots><enabled>true</enabled></snapshots>
-        </repository>
-        <!-- the same for vanillabp-camunda8-adapter -->
-      </repositories>
-    </profile>
-  </profiles>
-  <servers>
-    <server>
-      <id>vanillabp-camunda7-adapter</id>
-      <username>your-github-login</username>
-      <password>${env.GITHUB_PACKAGES_TOKEN}</password>
-    </server>
-  </servers>
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <profiles>
+        <!-- The published snapshots: -Pvanillabp-snapshots. Almost every repository deploys its
+             snapshots to Maven Central. Three still use GitHub Packages: the Camunda 7 and the
+             Camunda 8 adapter in the Camunda Community Hub, and Phactum/mongodb-changesets, which
+             the Business Cockpit reads. GitHub Packages asks for a login even for public
+             packages, so each of them has a server entry below. -->
+        <profile>
+            <id>vanillabp-snapshots</id>
+            <repositories>
+                <repository>
+                    <id>central-snapshots</id>
+                    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+                    <releases><enabled>false</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                </repository>
+                <repository>
+                    <id>vanillabp-camunda7-adapter</id>
+                    <url>https://maven.pkg.github.com/camunda-community-hub/vanillabp-camunda7-adapter</url>
+                    <releases><enabled>false</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                </repository>
+                <repository>
+                    <id>vanillabp-camunda8-adapter</id>
+                    <url>https://maven.pkg.github.com/camunda-community-hub/vanillabp-camunda8-adapter</url>
+                    <releases><enabled>false</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                </repository>
+                <repository>
+                    <id>phactum-mongodb-changesets</id>
+                    <url>https://maven.pkg.github.com/Phactum/mongodb-changesets</url>
+                    <releases><enabled>false</enabled></releases>
+                    <snapshots><enabled>true</enabled></snapshots>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
+
+    <servers>
+        <server>
+            <id>vanillabp-camunda7-adapter</id>
+            <username>your-github-username</username>
+            <password>${env.GITHUB_PACKAGES_TOKEN}</password>
+        </server>
+        <server>
+            <id>vanillabp-camunda8-adapter</id>
+            <username>your-github-username</username>
+            <password>${env.GITHUB_PACKAGES_TOKEN}</password>
+        </server>
+        <server>
+            <id>phactum-mongodb-changesets</id>
+            <username>your-github-username</username>
+            <password>${env.GITHUB_PACKAGES_TOKEN}</password>
+        </server>
+    </servers>
+
 </settings>
 ```
 
-Then build with `-Pvanillabp-adapter-snapshots`.
+Then build with the profile:
 
-The workspace sees these snapshots as well. Maven takes the newer of two snapshots: the one you
-installed, or the one on Maven Central. If `main` published after your last install, the build of the next
-repository takes the published one and not your change. So install the repository you changed
-again right before you build the one after it.
+```sh
+export GITHUB_PACKAGES_TOKEN=<your token>
+mvn -Pvanillabp-snapshots install
+```
+
+Keep only the repositories you need. An adapter needs `spi-for-java` and the platform. The platform
+needs `spi-for-java`. An application which tries an adapter needs that adapter as well. You need the
+token only for the Camunda 7 adapter, the Camunda 8 adapter and the Business Cockpit. The modules
+`migration-tests` of `operaton-adapter`, `cibseven-adapter` and their two Business Cockpit adapters
+need the Camunda 7 adapter, too. The `CONTRIBUTING.md` of each one says how.
+
+Take the account from the URLs above. The two Camunda adapters moved to `camunda-community-hub`.
+Their old URLs `https://maven.pkg.github.com/vanillabp/camunda7-adapter` and
+`https://maven.pkg.github.com/vanillabp/camunda8-adapter` still answer, but with an old snapshot
+which no longer changes. A build against them stays green and tests old code.
 
 ## Referenced repositories (submodules)
 
@@ -256,6 +334,16 @@ again right before you build the one after it.
 | `camunda7-adapter.wiki` | `camunda-community-hub/vanillabp-camunda7-adapter.wiki` | camunda-community-hub |
 | `camunda8-adapter` | `camunda-community-hub/vanillabp-camunda8-adapter` | camunda-community-hub |
 | `camunda8-adapter.wiki` | `camunda-community-hub/vanillabp-camunda8-adapter.wiki` | camunda-community-hub |
+| `operaton-adapter` | `vanillabp/operaton-adapter` | vanillabp |
+| `operaton-adapter.wiki` | `vanillabp/operaton-adapter.wiki` | vanillabp |
+| `cibseven-adapter` | `vanillabp/cibseven-adapter` | vanillabp |
+| `cibseven-adapter.wiki` | `vanillabp/cibseven-adapter.wiki` | vanillabp |
+| `business-cockpit` | `vanillabp/business-cockpit` | vanillabp |
+| `business-cockpit.wiki` | `vanillabp/business-cockpit.wiki` | vanillabp |
+| `businesscockpit-operaton-adapter` | `vanillabp/businesscockpit-operaton-adapter` | vanillabp |
+| `businesscockpit-operaton-adapter.wiki` | `vanillabp/businesscockpit-operaton-adapter.wiki` | vanillabp |
+| `businesscockpit-cibseven-adapter` | `vanillabp/businesscockpit-cibseven-adapter` | vanillabp |
+| `businesscockpit-cibseven-adapter.wiki` | `vanillabp/businesscockpit-cibseven-adapter.wiki` | vanillabp |
 | `renovate-config` | `vanillabp/renovate-config` | vanillabp |
 | `blueprints` | `vanillabp-blueprints/blueprints` | vanillabp-blueprints |
 | `blueprints-organisation-page` | `vanillabp-blueprints/.github` | vanillabp-blueprints |

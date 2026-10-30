@@ -62,7 +62,10 @@ that skill describes what each engine can do about it.
 - ZenBPM is built by its vendor, in a repository of its own and outside this workspace
   (decided 2026-08-28). What we owe that team is the guide named above, kept true.
 - All adapter artifacts are versioned **2.0.0-SNAPSHOT** (aligned with
-  adapter-platform-integration).
+  adapter-platform-integration). The exception is an adapter with release lines: the
+  Camunda 8 adapter publishes one snapshot per line, `2.0.0-<line>-SNAPSHOT` (e.g.
+  `2.0.0-8.10-SNAPSHOT`), and the Business Cockpit's Camunda 8 adapter does the same with
+  `0.9.0-<line>-SNAPSHOT`.
 - After creating a new adapter repo, add it to the repository list in the workspace's
   `CLAUDE.md`.
 
@@ -129,23 +132,41 @@ repositories rather than about the SPI.
 
 ## C7-family portability rules (Operaton / CIB seven readiness)
 
-The Camunda 7 adapter stays Camunda-7-only, but every line of it must stay **trivially
-copyable** to the forks Operaton (`org.operaton.bpm.*`) and CIB seven
-(`org.cibseven.bpm.*`) — both renamed all packages; the copy will be generated with
-OpenRewrite later. Rules for ALL C7 adapter code:
+The Camunda 7 adapter stays Camunda-7-only, but every line of it must stay **easy to
+generate** for the forks Operaton (`org.operaton.bpm.*`) and CIB seven
+(`org.cibseven.bpm.*`). Both renamed all packages. The fork adapters are generated from the
+C7 source with OpenRewrite into repositories of their own (stories `982` CIB seven and `983`
+Operaton; both measured on 2026-10-12, see `prompts/analysis-982-cibseven-RESULT.md` and
+`prompts/analysis-983-operaton-RESULT.md`). Rules for ALL C7 adapter code:
 
 - Write against `org.camunda.bpm` only; never mix in fork artifacts.
-- Prefer **namespace-generic model-API reads** (`getAttributeValueNs(CAMUNDA_NS, ...)`
-  with a single namespace constant) over typed extension getters — Operaton renamed
-  those symbols (`getCamundaExpression()` → `getOperatonExpression()`), plain package
-  renaming would not fix them.
+- Read BPMN extension attributes with the **typed getters** (`getCamundaExpression()`,
+  `getCamundaFormKey()`, ...), not with `getAttributeValueNs(CAMUNDA_NS, ...)`. Operaton has
+  its own namespace `operaton:` and treats `camunda:` as an alternative. Its typed getters
+  (renamed by its recipe to `getOperatonX()`) read both namespaces; a raw read of
+  `CAMUNDA_NS` misses every model drawn with the Operaton Modeler.
+- When the adapter **writes** an extension element into a model (`camunda:in`,
+  `camunda:properties`, ...), write it in the namespace its siblings already use. Operaton's
+  engine reads `camunda:` children only if no `operaton:` child sits under the same parent, so
+  one added `operaton:in` hides all `camunda:in` mappings of the modeller.
+- Keep property names, paths and class names out of strings where a symbol can carry them
+  (`camunda.bpm.enabled`, `/camunda`, plugin class names, schema script paths). A recipe
+  renames symbols, not strings; each such string needs a rule or an overlay in the fork.
 - Keep engine access behind the adapter's own classes (no engine types leaking into
   shared/platform-neutral modules beyond the `BPMN` type parameter).
-- Know the fork quirks for the later copy: CIB seven needs an explicit
-  `com.fasterxml.uuid:java-uuid-generator` dependency (its FEEL engine does not pull it
-  transitively); per-fork engine-spring artifacts (`operaton-engine-spring`,
-  `cibseven-engine-spring-7`); fork Spring Boot baselines differ (Operaton 2.x = Boot 4,
-  CIB seven ships a `-starter-4`).
+- Know the fork differences the generation has to handle:
+  - CIB seven 2.x moved the model API's extension classes to the package
+    `org.cibseven.bpm.model.bpmn.instance.cibseven` (not `...instance.camunda`); class and
+    getter names stayed. A plain package rename does not compile.
+  - CIB seven 2.2 checks its own modeler tables (`MOD_*`); with a `table-prefix` the engine
+    refuses to start unless `modelerEnabled` is `false`. Its webapp starter brings a webclient
+    which needs a JWT secret.
+  - Operaton uses the real `jakarta.el` API (EL 6, no `getFeatureDescriptors`); CIB seven
+    follows with 2.3. Operaton renamed `AcquireJobsRunnable.MONITOR` to `monitor`.
+  - Per-fork engine-spring artifacts (`operaton-engine-spring`, `cibseven-engine-spring-7`).
+    The adapter uses neither fork's Spring Boot starter nor its Quarkus extension, so their
+    Boot or Quarkus baselines do not bind the adapter.
+  - `java-uuid-generator` is NOT needed: the adapter keeps the engine's `DbIdGenerator`.
 - The whole C7 family is **JVM-mode only** on Quarkus (no native image) — decided.
 
 ## Cutting a prompt for adapter work
