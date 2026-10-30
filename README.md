@@ -11,7 +11,7 @@ repositories, plus two things that are developed here directly:
   (`devcontainers-config.json`) for the tooling that spins up one **isolated
   IntelliJ DevContainer per story** on top of this multi-repo workspace. The
   scripts themselves are **not** checked in here; they are cloned once from
-  `Phactum/dev-containers` and put on your PATH.
+  [`Phactum/dev-containers`](https://github.com/Phactum/dev-containers) and put on your PATH.
 
 Everything else in the workspace is pulled in as a submodule. Sibling
 directories that are **not** part of this repo (legacy repos
@@ -409,7 +409,7 @@ on your PATH.
 
 Both scripts read `devcontainers-config.json` at startup. The full list of
 configuration settings is documented in that file itself; for the tooling's
-internal design see the upstream `Phactum/dev-containers` (its `README.md` and
+internal design see the upstream [`Phactum/dev-containers`](https://github.com/Phactum/dev-containers) (its `README.md` and
 the header comment in `spawn-workspace.sh`).
 
 ## Prerequisites
