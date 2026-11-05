@@ -64,19 +64,19 @@
 	branch = master
 [submodule "businesscockpit-operaton-adapter"]
 	path = businesscockpit-operaton-adapter
-	url = git@github.com:vanillabp/businesscockpit-operaton-adapter.git
+	url = git@github.com:vanillabp/business-cockpit-operaton-adapter.git
 	branch = main
 [submodule "businesscockpit-operaton-adapter.wiki"]
 	path = businesscockpit-operaton-adapter.wiki
-	url = git@github.com:vanillabp/businesscockpit-operaton-adapter.wiki.git
+	url = git@github.com:vanillabp/business-cockpit-operaton-adapter.wiki.git
 	branch = master
 [submodule "businesscockpit-cibseven-adapter"]
 	path = businesscockpit-cibseven-adapter
-	url = git@github.com:vanillabp/businesscockpit-cibseven-adapter.git
+	url = git@github.com:vanillabp/business-cockpit-cibseven-adapter.git
 	branch = main
 [submodule "businesscockpit-cibseven-adapter.wiki"]
 	path = businesscockpit-cibseven-adapter.wiki
-	url = git@github.com:vanillabp/businesscockpit-cibseven-adapter.wiki.git
+	url = git@github.com:vanillabp/business-cockpit-cibseven-adapter.wiki.git
 	branch = master
 [submodule "business-cockpit.wiki"]
 	path = business-cockpit.wiki

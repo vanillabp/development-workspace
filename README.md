@@ -340,10 +340,10 @@ which no longer changes. A build against them stays green and tests old code.
 | `cibseven-adapter.wiki` | `vanillabp/cibseven-adapter.wiki` | vanillabp |
 | `business-cockpit` | `vanillabp/business-cockpit` | vanillabp |
 | `business-cockpit.wiki` | `vanillabp/business-cockpit.wiki` | vanillabp |
-| `businesscockpit-operaton-adapter` | `vanillabp/businesscockpit-operaton-adapter` | vanillabp |
-| `businesscockpit-operaton-adapter.wiki` | `vanillabp/businesscockpit-operaton-adapter.wiki` | vanillabp |
-| `businesscockpit-cibseven-adapter` | `vanillabp/businesscockpit-cibseven-adapter` | vanillabp |
-| `businesscockpit-cibseven-adapter.wiki` | `vanillabp/businesscockpit-cibseven-adapter.wiki` | vanillabp |
+| `businesscockpit-operaton-adapter` | `vanillabp/business-cockpit-operaton-adapter` | vanillabp |
+| `businesscockpit-operaton-adapter.wiki` | `vanillabp/business-cockpit-operaton-adapter.wiki` | vanillabp |
+| `businesscockpit-cibseven-adapter` | `vanillabp/business-cockpit-cibseven-adapter` | vanillabp |
+| `businesscockpit-cibseven-adapter.wiki` | `vanillabp/business-cockpit-cibseven-adapter.wiki` | vanillabp |
 | `renovate-config` | `vanillabp/renovate-config` | vanillabp |
 | `blueprints` | `vanillabp-blueprints/blueprints` | vanillabp-blueprints |
 | `blueprints-organisation-page` | `vanillabp-blueprints/.github` | vanillabp-blueprints |
