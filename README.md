@@ -163,9 +163,9 @@ fork and add it as a second remote of the submodule:
 
 ```sh
 gh repo fork --remote=false
-git remote add fork git@github.com:<your-account>/vanillabp-camunda7-adapter.git
+git remote add fork git@github.com:<your-account>/camunda7-adapter.git
 git push -u fork fix-message-correlation
-gh pr create --repo camunda-community-hub/vanillabp-camunda7-adapter \
+gh pr create --repo vanillabp/camunda7-adapter \
   --head <your-account>:fix-message-correlation --fill
 ```
 
@@ -330,9 +330,9 @@ which no longer changes. A build against them stays green and tests old code.
 | `adapter-platform-integration.wiki` | `vanillabp/adapter-platform-integration.wiki` | vanillabp |
 | `process-engine-api-adapter` | `vanillabp/process-engine-api-adapter` | vanillabp |
 | `process-engine-api-adapter.wiki` | `vanillabp/process-engine-api-adapter.wiki` | vanillabp |
-| `camunda7-adapter` | `camunda-community-hub/vanillabp-camunda7-adapter` | camunda-community-hub |
+| `camunda7-adapter` | `vanillabp/camunda7-adapter` | vanillabp |
 | `camunda7-adapter.wiki` | `camunda-community-hub/vanillabp-camunda7-adapter.wiki` | camunda-community-hub |
-| `camunda8-adapter` | `camunda-community-hub/vanillabp-camunda8-adapter` | camunda-community-hub |
+| `camunda8-adapter` | `vanillabp/camunda8-adapter` | vanillabp |
 | `camunda8-adapter.wiki` | `camunda-community-hub/vanillabp-camunda8-adapter.wiki` | camunda-community-hub |
 | `operaton-adapter` | `vanillabp/operaton-adapter` | vanillabp |
 | `operaton-adapter.wiki` | `vanillabp/operaton-adapter.wiki` | vanillabp |
