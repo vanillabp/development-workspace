@@ -20,7 +20,7 @@
 	branch = main
 [submodule "camunda7-adapter.wiki"]
 	path = camunda7-adapter.wiki
-	url = git@github.com:camunda-community-hub/vanillabp-camunda7-adapter.wiki.git
+	url = git@github.com:vanillabp/camunda7-adapter.wiki.git
 	branch = master
 [submodule "camunda8-adapter"]
 	path = camunda8-adapter
@@ -28,7 +28,7 @@
 	branch = main
 [submodule "camunda8-adapter.wiki"]
 	path = camunda8-adapter.wiki
-	url = git@github.com:camunda-community-hub/vanillabp-camunda8-adapter.wiki.git
+	url = git@github.com:vanillabp/camunda8-adapter.wiki.git
 	branch = master
 [submodule "process-engine-api-adapter"]
 	path = process-engine-api-adapter
@@ -62,20 +62,20 @@
 	path = cibseven-adapter.wiki
 	url = git@github.com:vanillabp/cibseven-adapter.wiki.git
 	branch = master
-[submodule "businesscockpit-operaton-adapter"]
-	path = businesscockpit-operaton-adapter
+[submodule "business-cockpit-operaton-adapter"]
+	path = business-cockpit-operaton-adapter
 	url = git@github.com:vanillabp/business-cockpit-operaton-adapter.git
 	branch = main
-[submodule "businesscockpit-operaton-adapter.wiki"]
-	path = businesscockpit-operaton-adapter.wiki
+[submodule "business-cockpit-operaton-adapter.wiki"]
+	path = business-cockpit-operaton-adapter.wiki
 	url = git@github.com:vanillabp/business-cockpit-operaton-adapter.wiki.git
 	branch = master
-[submodule "businesscockpit-cibseven-adapter"]
-	path = businesscockpit-cibseven-adapter
+[submodule "business-cockpit-cibseven-adapter"]
+	path = business-cockpit-cibseven-adapter
 	url = git@github.com:vanillabp/business-cockpit-cibseven-adapter.git
 	branch = main
-[submodule "businesscockpit-cibseven-adapter.wiki"]
-	path = businesscockpit-cibseven-adapter.wiki
+[submodule "business-cockpit-cibseven-adapter.wiki"]
+	path = business-cockpit-cibseven-adapter.wiki
 	url = git@github.com:vanillabp/business-cockpit-cibseven-adapter.wiki.git
 	branch = master
 [submodule "business-cockpit.wiki"]
