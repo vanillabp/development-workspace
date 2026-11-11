@@ -291,7 +291,7 @@
     // (this base is Debian -> apt-get). Changing it rebuilds the cached base image.
     // Omit (or set []) to leave the Dockerfile unchanged. Example (install ffmpeg):
     "dockerfileSnippet": [
-        "RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg \\",
+        "RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg python3-yaml \\",
         "    && rm -rf /var/lib/apt/lists/*"
     ],
 
