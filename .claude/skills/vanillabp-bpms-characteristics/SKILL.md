@@ -57,13 +57,12 @@ contact the cluster" — that is wrong. The real rule:
   event of an event subprocess during the create, so `${order.getTotal() > 100}` against
   an aggregate without that method throws out of the create command and no instance, no
   incident and no history entry is written - the workflow never comes into being while
-  the application's transaction is long committed (spike `analysis-c7-nested-expressions`,
-  case ES1, 2026-09-06). Waiting does not fix it, which is why such a failure has to be
-  answered as permanent rather than repeated. Camunda 8 refuses a create it cannot
+  the application's transaction is long committed. Waiting does not fix it, which is why
+  such a failure has to be answered as permanent rather than repeated. Camunda 8 refuses a create it cannot
   accept with HTTP 400 / gRPC `INVALID_ARGUMENT` instead, and the Process-Engine-API
   cannot tell a refusal from an outage at all. When adding a start-side feature, ask
   which expressions the engine reads at create time: the deployment check is the place
-  to catch them before anybody starts anything (story 214), and the permanent
+  to catch them before anybody starts anything, and the permanent
   classification is the net underneath.
 - **Camunda 8 evaluates nothing of the model while it creates an instance**, measured
   against 8.9.19 on 2026-09-11: a start event whose output mapping reads a variable
@@ -417,7 +416,7 @@ residual has no cure because a signal carries no key.
   after the commit. The keys are NOT derivable without the query API: a process instance
   is found by the aggregate-ID variable, the task's element instance via job search by
   job key (a VanillaBP task id of a service task IS the job key; for a user task it is the
-  user-task key, and the delivery record names the task since story 903). The API has no parent link on an element
+  user-task key, and the delivery record names the task). The API has no parent link on an element
   instance (only an `elementInstanceScopeKey` FILTER), so the scope around a task is
   found by walking down from the process instance. So the feature requires secondary storage, and the adapter says so. NOTE
   variable filters carry JSON values - a String has to be searched WITH quotes, which
@@ -446,24 +445,23 @@ no aggregate loaded).
 
 ## The end of a workflow
 
-The kind is `WorkflowEnd.Kind.COMPLETED` or `CANCELED` (renamed from `TERMINATED` by
-story 360). The SPI promises NO mapping of modelled paths to kinds: which paths a BPMS
+The kind is `WorkflowEnd.Kind.COMPLETED` or `CANCELED`. The SPI promises NO mapping of modelled paths to kinds: which paths a BPMS
 calls a cancelation is the BPMS' business and every adapter documents its own.
 
 - **Camunda 7:** an END execution listener at the PROCESS scope, inside the engine's
   transaction. `PvmExecutionImpl#getDeleteReason()` is what distinguishes a canceled
   or deleted instance from one which ran to its end, and the current activity id names
-  the element it ended at. Measured for story 360: a terminate end event and an
+  the element it ended at. Measured: a terminate end event and an
   interrupting event subprocess set NO delete reason, so both report COMPLETED, and the
   id named for the second one is the event subprocess rather than an end event
   (`Camunda7WorkflowEndKindIT`).
 - **Camunda 8:** an `end` execution listener on the PROCESS element is accepted
   (verified against 8.8.31 - unlike `start` on a start event, which is rejected). It
   runs for COMPLETED instances only. From release line 8.10 on a `cancel` execution
-  listener on the process element reports a canceled instance as well (story 370); on
+  listener on the process element reports a canceled instance as well; on
   8.8 and 8.9 such an instance is removed without running end listeners, so the adapter
   cannot report it and says so at boot. A terminate end event and an interrupting event
-  subprocess COMPLETE the instance here too, measured for story 357.
+  subprocess COMPLETE the instance here too, which was measured as well.
 - **Process-Engine-API:** nothing. Task subscriptions are all the API offers, so the
   adapter warns instead of pretending (GAPS.md 17).
 

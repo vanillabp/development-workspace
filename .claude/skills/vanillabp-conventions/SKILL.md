@@ -117,7 +117,7 @@ SQL) — better readability.
   `process-engine-api-adapter` has no such file and gets none, because there was never a version-1
   release of it. Each repository's `AGENTS.md` states the rule.
 - Versions: every artifact is on 2.0.0-SNAPSHOT, `spi-for-java` included since
-  2026-09-25 (story 486). It used to sit on 1.2.0-SNAPSHOT, a line which was never
+  2026-09-25. It used to sit on 1.2.0-SNAPSHOT, a line which was never
   released; what that line had gathered, asynchronous task completion, `@WorkflowEnded`,
   `@WorkflowStartedByBpms`, `sendSignal` and `aggregateChanged`, goes out with 2.0.
   User-facing documentation writes versions as `2.0`, without a patch digit and without

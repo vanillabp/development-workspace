@@ -206,9 +206,9 @@ compiler's line table.
   assertion in the same spot goes red instead, which is what sends whoever reworded the
   message to the negative one next to it. So pair them: the case which SHOULD report the
   finding asserts the sentence, the case which should not asserts its absence, and both
-  quote it in the same words. `Camunda7OldProcessVersionsIT` is the example after story
-  713; before it, `!reported.contains("served by NO @WorkflowTask method")` was the only
-  place in the class that knew the sentence at all, and the rewording of story 647 would
+  quote it in the same words. `Camunda7OldProcessVersionsIT` is the example; before it was
+  paired, `!reported.contains("served by NO @WorkflowTask method")` was the only
+  place in the class that knew the sentence at all, and a rewording of the message would
   have left it green whatever the check reported. Two things are NOT this rule: asserting
   that a SECRET or a raw value does not leak into a message (there is no positive twin, and
   the point is the absence itself), and a phrase taken from a constant rather than typed

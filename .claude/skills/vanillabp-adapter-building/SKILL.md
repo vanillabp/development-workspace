@@ -135,9 +135,9 @@ repositories rather than about the SPI.
 The Camunda 7 adapter stays Camunda-7-only, but every line of it must stay **easy to
 generate** for the forks Operaton (`org.operaton.bpm.*`) and CIB seven
 (`org.cibseven.bpm.*`). Both renamed all packages. The fork adapters are generated from the
-C7 source with OpenRewrite into repositories of their own (stories `982` CIB seven and `983`
-Operaton; both measured on 2026-10-12, see `prompts/analysis-982-cibseven-RESULT.md` and
-`prompts/analysis-983-operaton-RESULT.md`). Rules for ALL C7 adapter code:
+C7 source with OpenRewrite into repositories of their own (`cibseven-adapter` and
+`operaton-adapter`, each taking the C7 code only through its `bin/sync-from-camunda7.sh`).
+Rules for ALL C7 adapter code:
 
 - Write against `org.camunda.bpm` only; never mix in fork artifacts.
 - Read BPMN extension attributes with the **typed getters** (`getCamundaExpression()`,
