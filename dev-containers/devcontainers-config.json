@@ -171,7 +171,8 @@
         { "port": 3000, "label": "React" },
         { "port": 8079, "label": "bc-simulator" },
         { "port": 8080, "label": "application" },
-        { "port": 9080, "label": "bc" },
+        { "port": 8025, "label": "mailpit" },
+        { "port": 7017, "label": "mailpit" },
         { "port": 2222, "label": "ssh-tunnel" }
     ],
 
@@ -282,7 +283,7 @@
     // Base image for the container. On "debian" it must include a JDK (we layer
     // Maven on top); on "rocky" a plain distro image is enough -- the Dockerfile
     // installs the JDK.
-    "baseImage": "mcr.microsoft.com/devcontainers/java:1-21-bookworm",
+    "baseImage": "mcr.microsoft.com/devcontainers/java:25-bookworm",
 
     // OPTIONAL extra Dockerfile lines, appended near the END of the generated image
     // build (after the standard tooling, so those layers stay cache-stable). Each
@@ -299,7 +300,7 @@
     // Apache Maven release fetched from dlcdn/archive.apache.org. Ignored on
     // Debian, where the JDK comes from the base image and Maven from the
     // java:1 feature.
-    "javaVersion": "21",
+    "javaVersion": "25",
     "mavenVersion": "3.9.9",
 
     // Node version. On Debian this is the version of the devcontainers/node
