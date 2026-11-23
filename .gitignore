@@ -1,5 +1,6 @@
 # This repository lives at the workspace root. It tracks:
 #   - README.md            -- workspace overview (moved up from dev-containers/)
+#   - AGENTS.md, CLAUDE.md -- rules for coding agents (CLAUDE.md only imports AGENTS.md)
 #   - LICENSE / NOTICE      -- Apache 2.0 license and notice
 #   - readme/              -- README image assets (headline, contributors)
 #   - .github/             -- GitHub Actions (e.g. the submodule-bump workflow)
@@ -22,6 +23,8 @@
 !/.gitmodules
 !/.github/
 !/README.md
+!/AGENTS.md
+!/CLAUDE.md
 !/LICENSE
 !/NOTICE
 !/readme/
