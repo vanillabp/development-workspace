@@ -4,9 +4,13 @@
 
 This repository is the **top-level git superproject** for the VanillaBP
 development workspace. It bundles, as git submodules, the active VanillaBP
-repositories, plus two things that are developed here directly:
+repositories, plus a few things that are developed here directly:
 
 - **`.claude/skills/`** — shared Claude Code skills for working on VanillaBP.
+- **`.claude/hooks/`** and **`.claude/settings.json`**: project hooks for Claude Code. The
+  hook `no-unbounded-wait.sh` denies `while`/`until` loops with `sleep` that have no `timeout`.
+- **`.claude/memory-seed/`**: a small start memory for Claude Code. `spawn-workspace` copies it
+  into the project memory only when that memory is empty. See its `README.md`.
 - **`dev-containers/`** — the project-specific configuration
   (`devcontainers-config.json`) for the tooling that spins up one **isolated
   IntelliJ DevContainer per story** on top of this multi-repo workspace. The

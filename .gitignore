@@ -4,6 +4,8 @@
 #   - readme/              -- README image assets (headline, contributors)
 #   - .github/             -- GitHub Actions (e.g. the submodule-bump workflow)
 #   - .claude/skills       -- the shared Claude Code skills
+#   - .claude/hooks + .claude/settings.json -- project hooks (no unbounded wait loops)
+#   - .claude/memory-seed  -- start memory, copied by spawn-workspace into an empty memory
 #   - dev-containers       -- the per-story DevContainer tooling (flat files)
 #   - .gitmodules + the referenced repos below, as git submodules
 # The workspace also holds sibling directories that must stay untracked:
@@ -28,9 +30,13 @@
 !/dev-containers/
 !/.claude/
 
-# Within .claude, keep only skills (drop settings.local.json and anything else).
+# Within .claude, keep only skills, hooks, settings.json and the memory seed
+# (drop settings.local.json, plugins and anything else).
 /.claude/*
 !/.claude/skills/
+!/.claude/hooks/
+!/.claude/settings.json
+!/.claude/memory-seed/
 
 # Referenced repos, tracked as git submodules (cloned via --recurse-submodules).
 # Legacy (blueprint-workflowmodule-*, vanillabp-camunda*) is intentionally absent.
