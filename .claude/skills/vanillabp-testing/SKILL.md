@@ -56,10 +56,14 @@ compiler's line table.
 - Adapter repos follow the same scheme: per-platform coverage reports (add them when a
   repo gains its second platform).
 - **The number is a completeness signal for end-to-end tests, not a code-quality score**
-  (Stephan, 2026-08-21). Every documented VanillaBP feature is exercised through EVERY
+  (the maintainer's rule). Every documented VanillaBP feature is exercised through EVERY
   platform, so that the parts working is never mistaken for the whole working; measuring
   the platform-neutral core separately per platform is what makes a missing run visible.
   The core lines a platform's tests never reach ARE the features that platform never runs.
+  Write about coverage in that frame, in blueprints too: the number is secondary and shows
+  that tests which use the software as it is used in production (a simulator as the
+  environment, a process driver as the user) still reach most of it. Add a test per
+  acceptance criterion, never a test per missed line.
 - Which is why **the execution data of one platform must never be fed into the other's
   aggregate**, however tempting it looks when a number is low. It lifts the number and
   destroys the only thing it is good for. It has been proposed and
@@ -86,6 +90,14 @@ compiler's line table.
   the gate's list of exceptions together with the reason. The same holds for a
   production module left out of the aggregates (the Quarkus `ProcessServiceIdeProducer`
   is one: an unselected CDI alternative which exists for IDE analysis and can never run).
+- Every artifact which is delivered is measured, even one which does not run where its
+  repository's main product runs (the clients of the Business Cockpit's official GUI API have
+  reports of their own).
+- **One module is exempt from the rule of 90: the Business Cockpit's `container`.** It is a
+  reference and a template, not a product. Its report gates on
+  `coverage.threshold.application-spring-boot`, which holds what its suite reached (55) instead
+  of 85. The gate still prints its distance from the rule, but that distance is not a finding.
+  Like every threshold it is raised as tests arrive and never lowered.
 
 ## Always use `test-utils` (`io.vanillabp:test-utils`)
 
@@ -97,8 +109,12 @@ compiler's line table.
   client in a green build). Both rules are enforced by the `coverage-gate` module of every
   repository via `TestClassConventions`. What starts even earlier than the first callback
   — Docker detection from an `ExecutionCondition`, an image pull, the Ryuk reaper — no
-  extension reaches; that needs a `logback-test.xml` holding `org.testcontainers`, `tc`
-  and `com.github.dockerjava` at `WARN`.
+  extension reaches. That is the price, not a reason for a lower level: **output is silenced
+  by capturing it, never by lowering a log level.** A record a level drops reaches no
+  handler, so it is lost on failure too, and a red build then has nothing useful to show
+  (WARN is too little to work with). So `quarkus.log.level` stays at `INFO` and
+  `logback-test.xml` holds only `root` at `INFO`, without `WARN` overrides for Testcontainers
+  or docker-java. Before deciding anything, measure what is left in a green run.
 - **The one exemption: `@PrintsWhenPassing`.** A class whose printed line IS its result
   carries that annotation with the reason instead of the suppression, and
   `TestClassConventions` leaves it alone. VanillaBP has exactly one such class, the
@@ -213,6 +229,30 @@ compiler's line table.
   that a SECRET or a raw value does not leak into a message (there is no positive twin, and
   the point is the absence itself), and a phrase taken from a constant rather than typed
   out, which a rename carries along.
+- **A test class which reads the delivery log gets a database of its own.** The table
+  `VANILLABP_TASK_DELIVERY` survives the change from one test class to the next, while the
+  workflow aggregates start fresh with every context. A class reading the delivery log then
+  sees the records of the class before it: green alone, red in the full run, and it looks like
+  a defect in the read path although it is none. Give such a class its own H2 database (its
+  own name), not the shared one of the module.
+- **A change to the interplay of phase one and phase two is tested against a real engine
+  before the merge.** The BPMS double and the platform tests are not enough: user tasks of
+  the Camunda 7 family are `asyncAfter`, which the double does not know. A core change once
+  passed some 1,600 green platform tests, was merged, and only a blueprint run showed that a
+  scheduled correlation ran before the engine continued and was lost with a WARN; it was
+  reverted. So build the blueprint part of such a change locally against your own platform
+  build (a separate `-Dmaven.repo.local`, installed there) with an embedded engine (Camunda 7,
+  Operaton or CIB seven), ideally the blueprint `module-bpms-migration`, and switch off pauses in the
+  tests (`sleep`, the default `pollDelay` of Awaitility).
+- **A rebuild is measured by its visible result, not by its technique.** For a simulator, a
+  test double or the Business Cockpit's dev shell, what counts is that the result is exactly
+  the same (data, CSS, element hierarchy). How it is produced is secondary, so test the
+  observable result instead of copying the mechanics of the original.
+- **HTTP status codes are asserted by their meaning, never as a bare number.** Not
+  `isEqualTo(409)`, but `BcTaskClaimedByAnotherUserException.HTTP_STATUS_CODE` for answers of
+  the Business Cockpit support, otherwise `HttpStatus.BAD_REQUEST` (Spring) or
+  `Response.Status.BAD_REQUEST`. Then the test says what the number means in its context.
+  This holds in blueprints, in the cockpit and in adapters.
 - **Shared test beans are reset by the test which changed them** (`@AfterEach`), not only
   in the next class's `@BeforeEach`. Surefire and Failsafe run `alphabetical` (parent POM)
   so a runner's order matches the local one, but a left-behind window or stub answer still

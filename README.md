@@ -4,9 +4,13 @@
 
 This repository is the **top-level git superproject** for the VanillaBP
 development workspace. It bundles, as git submodules, the active VanillaBP
-repositories, plus two things that are developed here directly:
+repositories, plus a few things that are developed here directly:
 
 - **`.claude/skills/`** — shared Claude Code skills for working on VanillaBP.
+- **`.claude/hooks/`** and **`.claude/settings.json`**: project hooks for Claude Code. The
+  hook `no-unbounded-wait.sh` denies `while`/`until` loops with `sleep` that have no `timeout`.
+- **`.claude/memory-seed/`**: a small start memory for Claude Code. `spawn-workspace` copies it
+  into the project memory only when that memory is empty. See its `README.md`.
 - **`dev-containers/`** — the project-specific configuration
   (`devcontainers-config.json`) for the tooling that spins up one **isolated
   IntelliJ DevContainer per story** on top of this multi-repo workspace. The
@@ -26,7 +30,8 @@ Found a bug in VanillaBP? You can hand it to a coding agent.
 1. Clone this repository as [Cloning](#cloning) shows.
 2. Start your coding agent at the root of the workspace and describe the bug: what you did, what
    you expected and what happened instead. Claude Code picks up the skills in `.claude/skills`
-   from there.
+   from there. `AGENTS.md` at the root holds the rules agents follow in this workspace, and
+   `.claude/memory-seed/` holds lessons from past work as a start memory.
 3. The agent builds a scenario which reproduces the bug, looks for the cause and fixes it. Then it
    pushes a branch and opens a pull request, the same way you would do it by hand. See
    [From a change to a pull request](#from-a-change-to-a-pull-request).
