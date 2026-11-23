@@ -41,6 +41,23 @@ description: Development rules for implementing VanillaBP Version 2 features —
    is generalized is a mechanism which really is the same on both sides, never
    something BPMS-specific or specific to one extension; the SPI has to carry an ordinary
    extension as it is.
+7. **A default is version 1's behaviour.** Where a property is not set, VanillaBP 2 behaves
+   like version 1, or an upgraded application no longer finds its running workflows. An
+   adapter does not bend a default because its test cluster cannot serve it: both Camunda
+   adapters once defaulted `name-clash-avoidance` to `none` for that reason, which was the
+   defect, while version 1 had a tenant per workflow module. The workaround belongs in the
+   test's configuration. Before an adapter overrides an SPI default, check what version 1 did
+   in the same situation; where it differs, `UPGRADE.md` says why, and without that entry the
+   change is not finished. What the BPMS needs for the default, the adapter says in a startup
+   message which names ALL ways out.
+8. **Quarkus extensions belong only to the module which builds the application.** A workflow
+   module is a library and depends on `vanillabp-quarkus-support` only, so it stays
+   self-contained and brings no platform infrastructure. Code which has to check or report
+   something at build time on Quarkus lives in `vanillabp-quarkus-integration` or in an
+   adapter's extension, never in `vanillabp-quarkus-support`. An application without any
+   VanillaBP extension gets no such report; that is accepted and documented, not solved by an
+   extension inside the workflow module. On Spring Boot `vanillabp-spring-boot-support` is a
+   plain library as well, and its auto-configuration acts only in a Spring Boot application.
 
 ## Testing conventions
 
@@ -82,6 +99,13 @@ Deprecating with `forRemoval = true` obliges the same commit to add
 meant to stay until the removal. The `removal` lint is mandatory, and `@Deprecated`
 on an overriding method does not silence it, so without the suppression the
 deprecation shows up in every later build and hides the next real one.
+
+Never build on a deprecated API; use the way currently recommended. A blueprint is copied,
+and what is copied spreads into every application made from it. So read the build output for
+deprecation warnings, not only for BUILD SUCCESS: before reporting a change as done, search it
+for `deprecat|removal`. Blueprint POMs set `-Xlint:deprecation,removal` as `compilerArgs`.
+Quarkus cases already met: `QuarkusTransaction#isActive()`, `QuarkusUnitTest` and
+`ApplicationArchivesBuildItem#getAllApplicationArchives()`.
 
 Java 21 for adapter-platform-integration; `spi-for-java` targets Java 17. Fluent API
 calls with more than one method call: one line per call (Spotless-enforced). Import
@@ -181,3 +205,12 @@ VanillaBP core concept — see the `vanillabp-config-validation` skill. Never ad
   Boot with JPA only and lives in its own repository since decision 102: an
   application opts in by adding `io.vanillabp:gruelbox-phase-two-outbox`.
   Config: `vanillabp.outbox.*`.
+- **A handwritten constructor silently clears `@Builder.Default`.** Replacing
+  `@NoArgsConstructor` by `public X() {}` sets every `@Builder.Default` field of the class to
+  `null`: Lombok moves the initializer of such a field into the builder, and without Lombok's
+  constructor it never runs. No compiler error, no warning, and no test which must catch it.
+  This trap waits exactly where published classes get their constructors written out (Javadoc
+  runs no Lombok), and it once nearly cleared every configuration default of the platform. With
+  `@SuperBuilder` the way that works is `public X() { this(builder()); }`. Before replacing a
+  Lombok constructor annotation, check for `@Builder.Default`, `@Builder` or `@SuperBuilder`,
+  and afterwards check the defaults at RUNTIME, not only the build.

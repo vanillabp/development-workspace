@@ -12,7 +12,7 @@ configured** application and be led to a working setup purely by the messages em
 on each boot — reading as little documentation as possible. Configuration errors are
 not failures to punish, they are a guided setup dialog spread across restarts.
 
-Three rules follow from this.
+Four rules follow from this.
 
 ## 1. Validate as early as possible
 
@@ -72,6 +72,20 @@ Message-writing checklist:
 - Match the severity to rule 2: a guiding hint that still lets the app boot is a
   `WARN` with instructions; a genuine boot-blocker is an exception whose message still
   explains the remedy.
+
+## 4. The same strictness everywhere, and no key is ignored
+
+- **A key which is not read where it stands ends the startup, always.** That covers an
+  unknown key and a known key at the wrong level (for example `message-time-to-live` at a
+  task). Nothing is ignored silently, and there is no exception to discuss: apply it to every
+  new key and every new level, with a message which leads to the right place.
+- **An extension validates exactly like the core and the adapters**, neither stricter nor
+  more lax. What the core lets through with a warning (two `@WorkflowService` classes on one
+  BPMN process: the first wins, with a warning), the extension lets through too; what the core
+  refuses at startup, the extension refuses. The user sees one product, and a different
+  strictness per building block makes no sense to them. Before adding a startup check to an
+  extension, find the matching case in the core and take over its behaviour (end or warn) and
+  its wording.
 
 ## Why this is a core concept, not a nicety
 

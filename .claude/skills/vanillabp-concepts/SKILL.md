@@ -34,6 +34,21 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
 
 - **Process vs. workflow:** *Process* = the BPMN model. *Workflow* = one running
   instance of it. Use the terms strictly this way.
+- **BC:** short for *Business Cockpit*. "All BC repositories" means `business-cockpit`, its
+  adapter repositories `business-cockpit-*-adapter` and their wikis. Do not confuse it with the
+  npm packages `bc-shared`, `bc-ui` and `bc-types`, which carry the same letters.
+- **Completion vs. cancelation:** two ends of a user task or an asynchronous task, kept apart
+  everywhere (code, decisions, wiki). *Completion* = the task ends successfully from the
+  TECHNICAL point of view; the business result may still be negative and throw a BPMN error.
+  *Cancelation* = the engine ends the task without completing it, for example through a
+  boundary event, because the task became obsolete. A common word like "termination" hides
+  the difference, and the difference has consequences: on the Process-Engine-API (measured with
+  the reference implementation on embedded Camunda 7) a completion calls the termination
+  handler inside `completeTask`, on the caller's thread and transaction, while a cancelation
+  calls back one pull cycle later on a worker, without a transaction. A completion is repeated
+  through the phase-two entry, a cancelation is not. Older texts need care: the reference
+  reports `delete` also for a task somebody completed in a task list, so the Business Cockpit
+  reports that one as CANCELED.
 - **Workflow module:** BPMN model(s) + their implementation for one use case, packaged
   as its own Maven module (JAR). Declared by a marker file `META-INF/workflow-module`
   whose *content* is the workflow module ID. Purpose: encapsulation, avoiding BPMN name
@@ -65,6 +80,10 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   on: annotate what the models really need, or allow the full sync for that one
   workflow
   (`vanillabp.workflow-modules.<module>.workflows.<bpmn-process-id>.allow-full-sync-with-bpms`).
+  In version 1 both annotations existed in the code only as groundwork for version 2. They
+  were never implemented, documented or announced to users: version 1 sent the aggregate
+  serialized, and limiting it was the application's job. So never describe them as a gap or
+  a broken promise of version 1; version 2 turns the limit into a startup check.
   So a version-1 application still needs no code change, but it does have to say once
   what it shares, and that is the point of the check (decision 66). The permission is
   read at the workflow and nowhere else, a deliberate exception from the resolution
@@ -74,6 +93,19 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   attribute is left out of the check, because that value reaches the BPMS whatever the
   sync model says, and a secondary BPMN process is covered by the permission of the
   primary one.
+- **Portable values (`PortableValuesCheck`):** the startup check of what travels between the
+  aggregate and the BPMS. It applies two different rules, one per direction. TO the BPMS
+  (values of the aggregate), only `boolean` and `CharSequence` travel without being asked
+  (`travelsInEveryExpressionLanguage`); everything else needs an entry in
+  `vanillabp.workflow-modules.<module>.workflows.<process>.declared-aggregate-values`. That
+  entry is judged by its path alone (`DeclaredAggregateValues#covers`), so a declaration
+  admits EVERY type, `java.util.List` and `Map` included. FROM the BPMS, for a `@TaskParam`,
+  a type which names nothing (`Object`, `Map`, a collection) is reported because every BPMS
+  answers it with whatever its own serialization produced (`namesNoType`, used in
+  `judgeOneTaskParam` only). A collection as a value of the aggregate is not affected by that. Read `judgeAggregateValues` against `judgeTaskParams` before
+  following advice about this check: a claim that a declared `List` is refused once nearly
+  turned a small repair into a rewrite of a test application's types. Whether a value belongs
+  to the BPMS at all (`@NoSyncWithBPMS`) is a separate question.
 - **Adapter:** a BPMS-specific implementation of the migration-adapter SPI. One adapter
   instance per configured adapter id, and several ids of one BPMS type are allowed.
   Adapters live in separate repositories, three of them in this workspace: Camunda 7,
@@ -290,6 +322,59 @@ reach Spring Boot, Quarkus and future platforms (Jakarta EE) from one code base.
   through the phase-two outbox.
 - **Dummy adapter:** log-only adapter in each platform's integration-tests; template
   for adapter authors and test double for infrastructure tests without a real BPMS.
+
+## Design premises
+
+- **VanillaBP processes are always new processes.** The same business process often exists
+  more than once, then with another BPMN process id. Supporting a process which VanillaBP does
+  not serve (a listener served by a foreign worker, an instance another tool started) is nice
+  when it comes for free, but it must not restrict or complicate a design. Design for what
+  VanillaBP serves itself, and name the foreign case in one sentence of the documentation
+  instead of building a second way next to it. Several designs once spent effort and tests on
+  such cases, and they do not happen in practice.
+- **Two ways of wiring a task, until VanillaBP's own BPMN arrives.** VanillaBP 2.1 is planned
+  to bring a BPMN and a modeller of its own, which know only the element id; the adapter adds
+  the BPMS attributes while deploying, and `taskDefinition` of `@WorkflowTask` is meant to go
+  away. Until then everything supports both ways, the task definition (as the model writes it
+  for the BPMS) AND the element id (`id`), and where both are written the element id wins
+  (decision 51 of `adapter-platform-integration`). A new key which names a task accepts both already in 2.0
+  (`implemented-externally` was the first). Treat a limit which exists only for the `id` way as
+  temporary and do not build around it. Keep two conditions in mind for the change: a job type
+  derived from module, process and element id must stay stable across application versions,
+  because old workflows run with old names, and the kind of a task (Camunda 7
+  `camunda:expression` against `camunda:delegateExpression`, Camunda 8 worker against user
+  task listener) is in the model today and would then come from the method.
+
+## Version 1, for comparison
+
+The questions "what did version 1 do?" are answered from Maven Central, not from this
+workspace:
+
+- The version-1 adapters are published under the groupId `org.camunda.community.vanillabp`:
+  `camunda8-spring-boot-adapter` and `camunda7-spring-boot-adapter`. Take the list of versions
+  from `maven-metadata.xml`, not from the search of search.maven.org, whose `latestVersion`
+  was once three minor versions behind and led to a wrong finding.
+
+  ```
+  curl -s https://repo1.maven.org/maven2/org/camunda/community/vanillabp/camunda8-spring-boot-adapter/maven-metadata.xml
+  curl -sfLO https://repo1.maven.org/maven2/org/camunda/community/vanillabp/camunda8-spring-boot-adapter/<version>/camunda8-spring-boot-adapter-<version>-sources.jar
+  ```
+- Version 1 is not one thing. For the Camunda 8 adapter, **1.7.0** is the boundary which
+  counts: from there on version 1 already injects the `creating`/`canceling` task listeners
+  (same job type prefix `io.vanillabp.userTask:` as version 2), and its own deployment tables
+  `CAMUNDA8_DEPLOYMENTS`/`CAMUNDA8_RESOURCES` are gone. 1.6.3 is the last release before.
+- The code both version-1 adapters share is `io.vanillabp:spring-boot-support` (1.x):
+  `TaskHandlerBase`, `AbstractTaskWiring` and everything about the general behaviour, for
+  example how a `@TaskParam` was bound.
+- The version-1 SPI is `io.vanillabp:spi-for-java` 1.x. The viewer API (`getProcessDefinitions`,
+  `getBpmnXml`, `getWorkflowHistory`) exists from 1.1.0 on and is missing in 1.0.2, so "version
+  1 could not do that" depends on the SPI version.
+- There was never a Process-Engine-API adapter in version 1, so it has no upgrade path.
+- The repository `vanillabp/spring-boot-support` belongs to the 1.x line and is not part of
+  2.0; `adapter-platform-integration` (module `vanillabp-spring-boot-support`) replaces it. 1.x
+  users may still need bug fixes, so it is not switched off: keep its release workflow working
+  (Maven 3.9, current actions) when a change touches the workflows of all repositories anyway.
+  It gets no Spotless, unlike every other repository.
 
 ## Where things live
 
