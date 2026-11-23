@@ -52,11 +52,10 @@ that skill describes what each engine can do about it.
 - Each adapter is an **own Git repository**, cloned as a sibling of
   `adapter-platform-integration` in the workspace root. Initialize with
   `git init -b main`.
-- The Camunda adapter repos will later **replace `main` of the existing GitHub repos**
-  `vanillabp/camunda7-adapter` and `vanillabp/camunda8-adapter` (Camunda Community
-  Hub; not under our control, no new repos possible there). Therefore: directory and
-  artifact names must match those repos, and the Version-1 groupId
-  `org.camunda.community.vanillabp` is kept.
+- The Camunda adapters live in `vanillabp/camunda7-adapter` and `vanillabp/camunda8-adapter`.
+  Version 2 is published as `io.vanillabp`; version 1 stays under the groupId
+  `org.camunda.community.vanillabp` (decision 56 of `camunda7-adapter`). The artifact names
+  changed too, and each adapter's `UPGRADE.md` lists the new coordinates.
 - The Process-Engine-API adapter is a new repo (`process-engine-api-adapter`),
   groupId `io.vanillabp`.
 - ZenBPM is built by its vendor, in a repository of its own and outside this workspace
@@ -103,6 +102,35 @@ adapter discovery:
 
 A test also needs a `META-INF/workflow-module` marker: startup enforces "at least one workflow
 module". Everything else about tests is in `vanillabp-testing`.
+
+## What an adapter takes from the BPMS
+
+- **Only the plain Java client, or the engine API of an embedded engine.** The vendor's Spring
+  Boot starter and Quarkus extension are not used. They are read for one thing: the names and
+  the structure of their configuration properties, which the adapter offers per adapter id. So
+  a starter built for another Spring Boot line is no dependency of the adapter, and a question
+  about the baseline is asked of the engine or the client alone.
+- **Engine events stay hidden.** The execution, task and history events of the engine do not
+  reach the application, neither as Spring events (the `eventPublisherPlugin` of the Camunda 7
+  starter) nor in any other way. What an application needs to know comes through VanillaBP
+  (`@TaskEvent`, listeners). With the raw events an application could work around VanillaBP.
+  So do not bring back a starter plugin only because version 1 had it: "defaults stay version 1"
+  does not apply here, and the change gets one sentence in `UPGRADE.md` instead. A
+  `ProcessEnginePlugin` bean of the application is still picked up by the Camunda 7 adapter,
+  on purpose, although an application could register an event publisher that way.
+- **A client upgrade brings its new options in the same pull request.** When a new client
+  version adds builder or configuration options (for example new `CamundaClientBuilder` methods
+  for client certificates), the same upgrade offers them as adapter keys under
+  `vanillabp.adapters.<id>.*`, validated at startup, with README and wiki updated. A release
+  line whose client lacks the option refuses the key with a message saying so. An option the
+  client has and the adapter does not pass on is a gap for every user, so it is not parked as
+  "a feature for later".
+- **Retries exist only where the model sets them.** A job without explicitly modelled retries
+  fails at once and raises an incident. This holds for tasks and for modelled listeners
+  (decisions 83 and 87 of `camunda8-adapter`), as in version 1. The task may write somewhere,
+  and then a silent default of three attempts repeats work which is not idempotent. So a new
+  kind of job, a new adapter or a new default never brings an implicit retry count; a
+  deviation needs a decision.
 
 ## Things this workspace found out the hard way
 
@@ -169,6 +197,37 @@ Rules for ALL C7 adapter code:
   - `java-uuid-generator` is NOT needed: the adapter keeps the engine's `DbIdGenerator`.
 - The whole C7 family is **JVM-mode only** on Quarkus (no native image) — decided.
 
+### How a Camunda 7 change reaches the forks
+
+The same holds for the Business Cockpit's forks (`business-cockpit-cibseven-adapter`,
+`business-cockpit-operaton-adapter`), which follow the Camunda 7 extension.
+
+- **Only through the sync script.** Code which comes from the Camunda 7 adapter reaches
+  `operaton-adapter` and `cibseven-adapter` only by `bin/sync-from-camunda7.sh <camunda7-commit>`.
+  It writes the branch `generated`, which is then merged into `main` with a merge commit, never a
+  squash. The steps are in the section "Following the Camunda 7 adapter" of each fork's
+  `CONTRIBUTING.md`. A change by hand is allowed only where the fork behaves differently, as a
+  commit of its own with a test which fails without it. Nobody commits to `generated` by hand.
+  Why: four changes were once ported into the Operaton adapter by hand, and the next sync then
+  needed three merge corrections.
+- **After a merge which changes Camunda 7 code**, wait for the green `main` run of the Camunda 7
+  adapter, then run the sync. Several Camunda 7 merges can go into one sync. Where a fork has the
+  workflow `sync-from-camunda7.yaml`, it runs every night and on demand.
+- **A sync pull request waits for approval.** A pull request the workflow opens as
+  `github-actions` does not start its build by itself: the run stays at `action_required`, and the
+  pull request waits quietly while `main` may turn red. After every sync, look for open pull
+  requests from `sync/` branches and approve their run
+  (`gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/approve`), then follow the steps in
+  `CONTRIBUTING.md` and merge with a merge commit.
+- **A recipe change can lose a race against the nightly sync.** A pull request which changes the
+  recipe (`rewrite/*.yml` on `main`) carries its own `generated` commit, which is pushed with a
+  fast-forward after the merge. If a sync runs before that merge, it writes `generated` with the
+  OLD recipe from `main`, and the fast-forward no longer works. So after merging a recipe change,
+  check `origin/generated`. If it moved on: run the sync workflow again with the same Camunda 7
+  ref (it reads the recipe from `main`), merge `generated` with a merge commit into a NEW sync
+  branch (the old branch name belongs to the open sync pull request, and the workflow fails when
+  it pushes), open a pull request and close the old one. That merge changes no file.
+
 ## Cutting a prompt for adapter work
 
 - **Name the SPI boundary, not the class.** A story says which duty of the adapter contract
@@ -183,7 +242,7 @@ Rules for ALL C7 adapter code:
 - **Ask what the BPMS can actually do before deciding the shape.** Most adapter stories which
   went wrong went wrong because a capability was assumed. `vanillabp-bpms-characteristics` holds
   what is known per engine; anything beyond it is a probe to run, not a guess to write down.
-- **A finding which is not this story's job becomes a roadmap line**, not a widened scope.
+- **A finding which is not this story's job becomes a GitHub issue**, not a widened scope.
 - **When the SPI contract itself changes, the author guide changes with it.** A story which
   changes what an adapter implements, calls back or promises is not done until
   `migration-adapter/ADAPTER-AUTHORS.md` says the new thing; the platform repository's
