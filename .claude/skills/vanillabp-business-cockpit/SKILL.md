@@ -1,6 +1,6 @@
 ---
 name: vanillabp-business-cockpit
-description: Contributor rules for the VanillaBP Business Cockpit repositories (vanillabp/business-cockpit and the business-cockpit-*-adapter extensions) - delivered MongoDB changesets are append-only, a report to the cockpit is built at the event and not at dispatch, the module kit is only the minimum UI contract, which of the two public cockpit skills does what, and the Spring MVC 7 order of RouterFunctionMapping. Use before changing cockpit server code, a cockpit extension, the module kit or one of the cockpit skills.
+description: Contributor rules for the VanillaBP Business Cockpit repositories (vanillabp/business-cockpit and the business-cockpit-*-adapter extensions) - delivered MongoDB changesets are append-only, a report to the cockpit is built at the event and not at dispatch, the module kit is only the minimum UI contract, which of the two public cockpit skills does what, the Spring MVC 7 order of RouterFunctionMapping, and how the table of security audits is kept. Use before changing cockpit server code, a cockpit extension, the module kit or one of the cockpit skills.
 ---
 
 # Business Cockpit: contributor view
@@ -90,3 +90,17 @@ that mapping has order `-1`: it is asked before the controllers. A route `/**` t
 GET of the GUI API, whatever `@Order` it has. A working configuration from the WebFlux era (cockpit
 0.4.x) does not help: there the order was 1. The creator skill shows the fix in
 `references/backend.md`, section "The route to the user interface".
+
+## 6. A security audit ends with a row on the wiki page
+
+**Rule.** The wiki page `Security-audit` of `vanillabp/business-cockpit` lists every audit run: date,
+audited commit, and per severity the number of findings with the commits which fixed them. A run
+ends with a new top row there and the new date in the section "Security audit" of the `README.md`.
+A change which fixes a finding makes one commit per finding and enters that commit in the right
+cell, with the repository name if the fix is in another repository. A finding which is not fixed
+on purpose is entered as "accepted" with a link to its decision, one which nobody fixed yet as
+"open". `AGENTS.md` of the repository says the same.
+
+**Why.** Readers see at a glance that every finding was handled and where. The table, the page and
+the commit messages name no details of a finding, because the repository is public and a fix may
+not be released yet. Use the same pattern when another repository gets audited.
