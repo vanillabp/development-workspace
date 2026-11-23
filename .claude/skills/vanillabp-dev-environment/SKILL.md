@@ -12,8 +12,7 @@ what the environment does differently from what you would expect.
 
 ## Which repositories count
 
-Old versions (1.x) of the Camunda 7 and Camunda 8 adapters lived in the Camunda Community Hub. Now
-the repositories of the `vanillabp` organisation are the ones that count, for code, pull requests,
+The repositories of the `vanillabp` organisation are the ones that count, for code, pull requests,
 CI, nightly builds, releases and `DECISIONS.md`. The blueprints live in the organisation
 `vanillabp-blueprints`. The table "Referenced repositories" in the workspace `README.md` lists the
 remote of each submodule.

@@ -19,9 +19,6 @@ The workspace holds the active VanillaBP repositories as git submodules (see `.g
 Old versions (1.x) of the adapters lived in the Camunda Community Hub. Now the repositories of the
 `vanillabp` organisation are the ones that count.
 
-`business-cockpit-angular-ui` is legacy. Do not change it, not even to fix a red build. You may read
-it to look up old code.
-
 ## Where to find work
 
 - The issues of each repository. Users report bugs and wishes there.
@@ -196,7 +193,6 @@ The hook `.claude/hooks/no-unbounded-wait.sh` rejects a `while`/`until` loop wit
 - A red `main` or nightly run goes before new work, even if only a flaky test or a 429 from Maven
   Central caused it. Why: people who see a red badge do not tell a test problem from a code problem.
 - Make a flaky test robust; do not retry it.
-- This does not apply to `business-cockpit-angular-ui`.
 
 ## Clean up
 
@@ -215,8 +211,8 @@ The hook `.claude/hooks/no-unbounded-wait.sh` rejects a `while`/`until` loop wit
   requests, `README.md`, `DECISIONS.md`, wikis and questions.
 - Run every text through the `humaniser` skill before you commit it. No dashes as punctuation, no
   bold labels at the start of list items, no forced lists of three, no promotional words.
-- Every commit made with an AI agent carries a `Co-Authored-By:` trailer for the agent. Never remove
-  it, also not to satisfy a CLA check.
+- Every commit made with an AI agent carries a `Co-Authored-By:` trailer which names the model that
+  was used. Never remove it, also not to satisfy a CLA check.
 - Always name pull requests and issues with their repository, for example `camunda7-adapter#161`,
   never just `#161`. Why: with many repositories, a bare number is ambiguous.
 - Feedback on one file applies to every file of the set. After each pass, grep all files for the

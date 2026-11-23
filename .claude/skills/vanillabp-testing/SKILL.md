@@ -56,7 +56,7 @@ compiler's line table.
 - Adapter repos follow the same scheme: per-platform coverage reports (add them when a
   repo gains its second platform).
 - **The number is a completeness signal for end-to-end tests, not a code-quality score**
-  (Stephan, 2026-08-21). Every documented VanillaBP feature is exercised through EVERY
+  (the maintainer's rule). Every documented VanillaBP feature is exercised through EVERY
   platform, so that the parts working is never mistaken for the whole working; measuring
   the platform-neutral core separately per platform is what makes a missing run visible.
   The core lines a platform's tests never reach ARE the features that platform never runs.
